@@ -23,14 +23,14 @@ parser.add_option( "-n", "--mpc-number", dest="mpc_number", help="mpc_number", m
 
 if options.mpc_number:
     mpc_number=options.mpc_number
-    print("mpc_number:",mpc_number)
+    # print("mpc_number:",mpc_number)
 else:
     mpc_number="4986"
 
 # define object
 # LOAD OR RUN QUERY? ADD FILTER INFO (o or c?)
 obj_number=mpc_number
-print(mpc_number)
+# print(mpc_number)
 low_alpha_cut=5.0*u.deg # we want to quantify how many data points are fit at low phase angles, alpha < low_alpha_cut
 param_converge_check=0.01 # the model is fit until the change in parameters (e.g. H and G) is less than param_converge_check (or max iterations is reached)
 max_iters=30 # maximum number of attempts at fitting
@@ -107,6 +107,15 @@ FROM atlas_objects WHERE mpc_number=%(mpc_number)s
 df_obj=pd.read_sql_query(qry_obj1,cnx1)
 # print(df_obj.to_string())
 
+# fix the date strings
+dates=["dateLastModified","last_photometry_update_date_c","last_photometry_update_date_o"]
+for d in dates:
+    if df_obj[d].iloc[0] is not None:
+        df_obj.loc[0,d]="'{}'".format(str(df_obj[d].iloc[0]))
+# for some reason None needs changed to Null?
+df_obj=df_obj.fillna(value="NULL")
+# print(df_obj.to_string())
+
 qry_HG="select G_slope, H_abs_mag from orbital_elements where primaryId='{}';".format(obj_number)
 df_HG=pd.read_sql_query(qry_HG,cnx1)
 
@@ -130,11 +139,11 @@ if mpc_check==0:
 
 else:
     qry_obj = u"""UPDATE {} SET
-    dateLastModified='{}',
+    dateLastModified={},
     detection_count={},
     last_detection_mjd={},
-    last_photometry_update_date_c='{}',
-    last_photometry_update_date_o='{}',
+    last_photometry_update_date_c={},
+    last_photometry_update_date_o={},
     name='{}',
     orbital_elements_id={},
     primaryId={}
@@ -148,9 +157,12 @@ else:
     int(df_obj['orbital_elements_id']),
     int(df_obj['primaryId'])) % locals()
 
+# !!! use detection_count to track if object should be refit? no new data, no refit...
+# !!! or use last photometry update date
+
 # print(qry_obj)
 
-# !!! WHAT TO DO WITH updated FLAG?
+# !!! WHAT TO DO WITH updated FLAG? use it to track number of times the fit has been done? Change to a date?
 
 cursor2.execute(qry_obj)
 cnx2.commit()
@@ -163,11 +175,14 @@ for filt in filters:
 
     # !!! SHIFT TO o AND c FILTERS!
 
-    print("G_slope = {}\nH_abs_mag = {}".format(G_slope,H_abs_mag))
+    # print("G_slope = {}\nH_abs_mag = {}".format(G_slope,H_abs_mag))
     # iterate over all models
     for i,model_name in enumerate(model_names):
 
         ms=model_short[i]
+
+        # if ms!=model_short[1]:
+        #     continue
 
         old_params=[999]*len(model_name.parameters)
 
@@ -178,10 +193,11 @@ for filt in filters:
         # for j in range(3):
         # for j in [0]:
 
-        print("fit {}".format(model_names_str[i]))
+        print("fit {}, filter {}".format(model_names_str[i],filt))
         # print("fit {}, {}".format(model_names_str[i],j))
 
         # load data to be fitted
+        # !!! we should query the data only once!
         data=atlas_SQL_query(mpc_number=obj_number,filter=filt)
         data=data.sort_values("phase_angle") # ensure that the dataframe is in order for plotting
         data_zero_err=data[data['merr']==0]
@@ -190,6 +206,10 @@ for filt in filters:
         detection_count_filt=len(data) # !!! SHOULD WE RECORD NUMBER OF DETECTIONS BEFORE/AFTER CUTS?
 
         # print(data)
+
+        if len(data)==0:
+            print("no data, cannot fit")
+            break
 
         # plot the asteroid phase data
         # extract asteroid phase data from data
@@ -230,6 +250,11 @@ for filt in filters:
                 # print(mag_err)
                 # print(1.0/np.array(mag_err))
                 # exit()
+
+                if len(alpha)<=len(phase_curve[i]):
+                    print("less data to fit than parameters")
+                    break
+
                 model = fitter(model_name, alpha, mag, weights=1.0/np.array(mag_err)) # add weights/uncertainties here?
                 model_str=model_names_str[i]
 

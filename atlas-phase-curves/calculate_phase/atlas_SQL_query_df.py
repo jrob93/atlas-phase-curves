@@ -53,4 +53,4 @@ def atlas_SQL_query(mpc_number=4986,filter="o"):
 
     return df
 
-print(atlas_SQL_query(mpc_number=4985))
+# print(atlas_SQL_query(mpc_number=4985))
