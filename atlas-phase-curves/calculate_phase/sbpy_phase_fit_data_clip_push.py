@@ -35,6 +35,7 @@ low_alpha_cut=5.0*u.deg # we want to quantify how many data points are fit at lo
 param_converge_check=0.01 # the model is fit until the change in parameters (e.g. H and G) is less than param_converge_check (or max iterations is reached)
 max_iters=30 # maximum number of attempts at fitting
 std=2 # standard deviation of the sigma data clip
+mag_err_threshold = 0.1 # limit for the error of "good" data, we record N_mag_err number of data points with error < mag_err_threshold
 
 utc_date_now=datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S") # time at which the script is run (UTC)
 
@@ -49,6 +50,8 @@ def data_clip_sigma(data,data_predict,low=2,high=2):
 #     diff=1.0
 #     clip_mask=(np.absolute(data_predict-data)>diff)
 #     return clip_mask
+
+data_clip_func=data_clip_sigma
 
 # fit new models to model data
 fitter = LevMarLSQFitter()
@@ -73,6 +76,7 @@ cnx1 = mysql.connector.connect(**config1)
 cursor1 = cnx1.cursor()
 
 # connect to the database to write to
+# !!! too many connections! use the same connection but switch db in qry?
 config2 = {
   'user': 'af',
   'password': 'afPass',
@@ -83,10 +87,13 @@ config2 = {
 }
 cnx2 = mysql.connector.connect(**config2)
 cursor2 =cnx2.cursor()
+# !!! merge conections when we start writing to the same db, try:
+# cnx2 = cnx1
+# cursor2 = cursor1
 
 tab_name="test_table"
 
-# get the last bits of data
+# get the last bits of data. might be out of date if rockatlas isn't running...?
 qry_obj1=u"""SELECT
 dateLastModified,
 detection_count,
@@ -105,7 +112,9 @@ FROM atlas_objects WHERE mpc_number=%(mpc_number)s
 # print(qry_obj1)
 
 df_obj=pd.read_sql_query(qry_obj1,cnx1)
+# print(pd.Series(df_obj.iloc[0]))
 # print(df_obj.to_string())
+# print(df_obj[['detection_count',  'detection_count_c',  'detection_count_o']])
 
 # fix the date strings
 dates=["dateLastModified","last_photometry_update_date_c","last_photometry_update_date_o"]
@@ -115,6 +124,7 @@ for d in dates:
 # for some reason None needs changed to Null?
 df_obj=df_obj.fillna(value="NULL")
 # print(df_obj.to_string())
+# print(df_obj[['detection_count',  'detection_count_c',  'detection_count_o']])
 
 qry_HG="select G_slope, H_abs_mag from orbital_elements where primaryId='{}';".format(obj_number)
 df_HG=pd.read_sql_query(qry_HG,cnx1)
@@ -123,19 +133,47 @@ cursor2.execute("SELECT COUNT(1) FROM {} where mpc_number={}".format(tab_name,mp
 mpc_check=cursor2.fetchone()[0]
 # print("mpc_check = {}".format(mpc_check))
 
+# load data to be fitted, loads both filters (o & c)
+data_all_filt=atlas_SQL_query(cnx=cnx1,mpc_number=obj_number)
+detection_count=len(data_all_filt) # note that atlas_objects may not have up to date detection count...
+# print(data_all_filt)
+
 if mpc_check==0:
+    # qry_obj = u"""INSERT INTO {}
+    # (mpc_number,
+    # last_detection_mjd,
+    # name,
+    # orbital_elements_id,
+    # primaryId)
+    # VALUES
+    # (%(mpc_number)s,{},'{}',{},{});""".format(tab_name,
+    # float(df_obj['last_detection_mjd']),
+    # str(df_obj['name'].iloc[0]),
+    # int(df_obj['orbital_elements_id']),
+    # int(df_obj['primaryId'])) % locals()
+
     qry_obj = u"""INSERT INTO {}
     (mpc_number,
+    dateLastModified,
+    detection_count,
     last_detection_mjd,
+    last_photometry_update_date_c,
+    last_photometry_update_date_o,
     name,
     orbital_elements_id,
     primaryId)
     VALUES
-    (%(mpc_number)s,{},'{}',{},{});""".format(tab_name,
+    (%(mpc_number)s,{},{},{},{},{},'{}',{},{});""".format(tab_name,
+    str(df_obj['dateLastModified'].iloc[0]),
+    detection_count,
     float(df_obj['last_detection_mjd']),
+    str(df_obj['last_photometry_update_date_c'].iloc[0]),
+    str(df_obj['last_photometry_update_date_o'].iloc[0]),
     str(df_obj['name'].iloc[0]),
     int(df_obj['orbital_elements_id']),
     int(df_obj['primaryId'])) % locals()
+
+    # !!! insert detection count etc here?
 
 else:
     qry_obj = u"""UPDATE {} SET
@@ -149,7 +187,7 @@ else:
     primaryId={}
     WHERE mpc_number=%(mpc_number)s;""".format(tab_name,
     str(df_obj['dateLastModified'].iloc[0]),
-    int(df_obj['detection_count']),
+    detection_count,
     float(df_obj['last_detection_mjd']),
     str(df_obj['last_photometry_update_date_c'].iloc[0]),
     str(df_obj['last_photometry_update_date_o'].iloc[0]),
@@ -173,10 +211,17 @@ for filt in filters:
     # H and G values for the predicted fit
     G_slope=float(df_HG.iloc[0]['G_slope'])
     H_abs_mag=float(df_HG.iloc[0]['H_abs_mag'])
-
-    # !!! SHIFT TO o AND c FILTERS!
-
     # print("G_slope = {}\nH_abs_mag = {}".format(G_slope,H_abs_mag))
+
+    # !!! SHIFT HG TO o AND c FILTERS!
+
+    # select all data from a certain filter
+    data_filt=data_all_filt[data_all_filt['filter']==filt]
+    # print(data_filt)
+    detection_count_filt=len(data_filt) # !!! SHOULD WE RECORD NUMBER OF DETECTIONS BEFORE/AFTER CUTS?
+    # print(detection_count_filt)
+    # continue
+
     # iterate over all models
     for i,model_name in enumerate(model_names):
 
@@ -187,24 +232,17 @@ for filt in filters:
 
         old_params=[999]*len(model_name.parameters)
 
-        # iterate over data cuts
-
-        # !!! SELECT ONE AND SET IT: 2-sigma?
-
-        # for j in range(3):
-        # for j in [0]:
+        # iterate over data cuts?
+        # !!! SELECT ONE AND SET IT: 2-sigma
 
         print("fit {}, filter {}".format(model_names_str[i],filt))
         # print("fit {}, {}".format(model_names_str[i],j))
 
-        # load data to be fitted
-        # !!! we should query the data only once!
-        data=atlas_SQL_query(mpc_number=obj_number,filter=filt)
+        # initialise the data that we will iteratively fit and cut
+        data=data_filt
         data=data.sort_values("phase_angle") # ensure that the dataframe is in order for plotting
         data_zero_err=data[data['merr']==0]
         data=data[data['merr']!=0] # drop any measurements with zero uncertainty
-
-        detection_count_filt=len(data) # !!! SHOULD WE RECORD NUMBER OF DETECTIONS BEFORE/AFTER CUTS?
 
         # print(data)
 
@@ -282,6 +320,7 @@ for filt in filters:
                 # print("delta params = {}".format(delta_params))
                 if np.sum(delta_params<param_converge_check)==len(delta_params):
                     # print("converged")
+                    print(params)
 
                     # retrieve the fit metrics
                     x_vals=params
@@ -310,10 +349,26 @@ for filt in filters:
                     alpha_min=np.amin(alpha).value
                     alpha_max=np.amax(alpha).value
                     phase_angle_range=alpha_max-alpha_min
-                    N_alpha_low=sum(alpha<low_alpha_cut)
+                    # N_alpha_low=sum(alpha<low_alpha_cut)
+                    N_alpha_low=len(alpha[alpha<low_alpha_cut])
                     N_iter=k
                     nfev=fitter.fit_info['nfev']
                     ier=fitter.fit_info['ierr']
+                    N_mag_err=len(mag_err[np.array(mag_err)<mag_err_threshold])
+
+                    # # time len() vs sum()
+                    # import time
+                    # start = time.process_time()
+                    # sum(alpha<low_alpha_cut)
+                    # sum(np.array(mag_err)<mag_err_threshold)
+                    # print(time.process_time() - start)
+                    #
+                    # start = time.process_time()
+                    # len(alpha[alpha<low_alpha_cut])
+                    # len(mag_err[np.array(mag_err)<mag_err_threshold])
+                    # print(time.process_time() - start)
+
+                    # exit()
 
                     # print(fitter.fit_info)
                     print(fitter.fit_info['message'])
@@ -337,10 +392,12 @@ for filt in filters:
                     phase_curve_N_iter%(ms)s_%(filt)s=%(N_iter)s,
                     phase_curve_refresh_date_%(filt)s='%(utc_date_now)s',
                     phase_curve_nfev%(ms)s_%(filt)s=%(nfev)s,
-                    phase_curve_ier%(ms)s_%(filt)s=%(ier)s
+                    phase_curve_ier%(ms)s_%(filt)s=%(ier)s,
+                    phase_curve_N_mag_err%(ms)s_%(filt)s=%(N_mag_err)s
                     WHERE mpc_number=%(mpc_number)s;""" % locals()
 
                     # print(qry)
+                    # exit()
 
                     cursor2.execute(qry)
                     cnx2.commit()
@@ -351,7 +408,7 @@ for filt in filters:
             # !!! remove options for speed
             # if j==0:
             # std=2
-            mask=data_clip_sigma(mag, model(alpha),std)
+            mask=data_clip_func(mag, model(alpha),std)
             # clip_label="{}-sigma_clip".format(std)
             # elif j==1:
             #     std=3
