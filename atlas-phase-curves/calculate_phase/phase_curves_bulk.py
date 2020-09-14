@@ -7,12 +7,13 @@ from multiprocessing import Pool
 import subprocess
 
 def phase_fit_func(mpc_number):
+    # !!! use try/except to append to list of errors?
     py_cmd="python sbpy_phase_fit_data_clip_push.py -n {}".format(mpc_number)
     print(py_cmd)
     subprocess.Popen(py_cmd,shell=True).wait()
     return
 
-"""
+#"""
 # connect to the database
 config = {
   'user': 'af',
@@ -32,13 +33,17 @@ print(df)
 
 cnx.close()
 
-mpc_number_list=np.random.choice(df['mpc_number'].astype(int),10,replace=False)
-print(mpc_number_list)
-"""
+#mpc_number_list=np.random.choice(df['mpc_number'].astype(int),10,replace=False)
+mpc_number_list=df['mpc_number'].astype(int)
+#mpc_number_list=mpc_number_list[mpc_number_list>11350]
+mpc_number_list=mpc_number_list[mpc_number_list>95226]
+print(len(mpc_number_list))
+#exit()
+#"""
 
-mpc_number_list=[339933, 370192, 416678, 238537, 181325, 358275,  68172, 383854,  41777, 215944]
+#mpc_number_list=[339933, 370192, 416678, 238537, 181325, 358275,  68172, 383854,  41777, 215944]
 # mpc_number_list=[339933, 370192, 416678, 238537]
-print(mpc_number_list)
+#print(mpc_number_list)
 
 # add mpc_number or date requirements to run?
 # run in reverse date order so that objects that have not been calculated are done first?
