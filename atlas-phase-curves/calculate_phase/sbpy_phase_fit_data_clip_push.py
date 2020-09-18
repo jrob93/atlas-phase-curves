@@ -13,6 +13,10 @@ import sys
 from atlas_SQL_query_df import atlas_SQL_query
 import datetime
 
+# Be very careful suppressing warnings...
+import warnings
+warnings.filterwarnings('ignore')
+
 # !!! FUNCTIONALISE THIS?
 parser = OptionParser()
 parser.add_option( "-n", "--mpc-number", dest="mpc_number", help="mpc_number", metavar="MPC_NUMBER" )
