@@ -8,12 +8,12 @@ import subprocess
 
 def phase_fit_func(mpc_number):
     # !!! use try/except to append to list of errors?
-    py_cmd="python sbpy_phase_fit_data_clip_push.py -n {}".format(mpc_number)
+    py_cmd="python sbpy_phase_fit_data_clip_push.py -n {} > tmp".format(mpc_number)
     print(py_cmd)
     subprocess.Popen(py_cmd,shell=True).wait()
     return
 
-#"""
+# """
 # connect to the database
 config = {
   'user': 'af',
@@ -39,10 +39,17 @@ mpc_number_list=df['mpc_number'].astype(int)
 mpc_number_list=mpc_number_list[mpc_number_list>95226]
 print(len(mpc_number_list))
 #exit()
-#"""
+# """
 
-#mpc_number_list=[339933, 370192, 416678, 238537, 181325, 358275,  68172, 383854,  41777, 215944]
+# mpc_number_list=[339933, 370192, 416678, 238537, 181325, 358275,  68172, 383854,  41777, 215944]
 # mpc_number_list=[339933, 370192, 416678, 238537]
+# mpc_number_list=[95227,95228,95229,95230,95231,95232,95233,95234,95235,95236,95237,95238
+# ,95239,95240,95241,95242,95243,95244,95245,95246,95247,95248,95249,95250
+# ,95251,95252,95253,95254,95255,95256,95257,95258,95259,95260,95261,95262
+# ,95263,95264,95265,95266,95267,95268,95269,95270,95271,95272,95273,95274
+# ,95275,95276]
+mpc_number_list=mpc_number_list[:120]
+
 #print(mpc_number_list)
 
 # add mpc_number or date requirements to run?
@@ -50,11 +57,18 @@ print(len(mpc_number_list))
 
 # print("run in serial")
 # t_start=time.time()
+# count=0
 # for n in mpc_number_list:
 #     phase_fit_func(n)
+#     if count>3:
+#         break
+#     else:
+#         count+=1
 # t_end=time.time()
-# print ("N_jobs = {}".format(len(mpc_number_list)))
+# print ("N_jobs = {}".format(count))
 # print ("t_pool = {}".format(t_end-t_start))
+# print("{} objects/second".format(float(count)/(t_end-t_start)))
+# exit()
 
 # set up pool and fit phase
 # threads=4
@@ -83,3 +97,5 @@ while len(mpc_number_list)>0:
     print("{} objects/second".format(float(jobs_done)/t_elapsed))
 
     print()
+
+    exit()
