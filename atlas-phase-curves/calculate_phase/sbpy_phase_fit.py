@@ -224,7 +224,11 @@ for filt in filters:
     H_abs_mag=float(df_HG.iloc[0]['H_abs_mag'])
     # print("G_slope = {}\nH_abs_mag = {}".format(G_slope,H_abs_mag))
 
-    # !!! SHIFT HG TO o AND c FILTERS!
+    # do filter correction from V band (Heinze et al. 2020)
+    if filter=="o":
+        H_abs_mag+=-0.332
+    if filter=="c":
+        H_abs_mag+=0.054
 
     # select all data from a certain filter
     data_filt=data_all_filt[data_all_filt['filter']==filt]
