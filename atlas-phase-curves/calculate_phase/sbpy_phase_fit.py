@@ -40,15 +40,14 @@ if options.warnings:
 else:
     warning_flag=0
 
+# Suppress warnings if the output is annoying. Be very careful suppressing warnings...
 if warning_flag==1:
-    # Be very careful suppressing warnings...
     import warnings
     warnings.filterwarnings('ignore')
 
 print(filters)
 
-# define object
-# LOAD OR RUN QUERY?
+# define object and some flags
 obj_number=mpc_number
 print(mpc_number)
 low_alpha_cut=5.0*u.deg # we want to quantify how many data points are fit at low phase angles, alpha < low_alpha_cut
@@ -56,10 +55,10 @@ param_converge_check=0.01 # the model is fit until the change in parameters (e.g
 max_iters=30 # maximum number of attempts at fitting and cutting
 std=2 # standard deviation of the sigma data clip
 mag_err_threshold = 0.1 # limit for the error of "good" data, we record N_mag_err number of data points with error < mag_err_threshold
-push_fit=False # flag to push fit to database
-plot_fig=True # flag to generate plot for each object
-show_fig=True # flag to display interactive plot
-save_fig=True # flag to save the figure
+push_fit=True # flag to push fit to database
+plot_fig=False # flag to generate plot for each object
+show_fig=False # flag to display interactive plot
+save_fig=False # flag to save the figure
 
 utc_date_now=datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S") # time at which the script is run (UTC)
 
@@ -268,7 +267,7 @@ for filt in filters:
         # drop any measurements with zero uncertainty
         data_zero_err=data[data['merr']==0]
         data=data[data['merr']!=0]
-        # drop measurements with small (or zero) uncertainty
+        # drop measurements with small (or zero) uncertainty MOVE THIS TO A VARIABLE UP TOP!
         data_small_err=data[data['merr']<0.01]
         data=data[~(data['merr']<0.01)]
 
@@ -496,7 +495,7 @@ for filt in filters:
                         else:
                             plt.close()
 
-                    exit()
+                    # exit()
                     break
 
             # record stuff for plotting
