@@ -24,7 +24,7 @@ def atlas_SQL_query(cnx,mpc_number=4986,filter="all"):
     # REVIEW THIS QUERY, E.G. WHY d.expname?
     if filter=="all":
         sqlQuery_alan = u"""
-        SELECT d.mjd, d.m,  d.dfitmag as merr, a.filter, o.observer_distance, o.heliocentric_distance, o.phase_angle, d.m - 5*log10(o.heliocentric_distance*o.observer_distance) as reduced_mag, o.apparent_mag
+        SELECT d.mjd, d.m,  d.dfitmag as merr, a.filter, o.observer_distance, o.heliocentric_distance, o.phase_angle, d.m - 5*log10(o.heliocentric_distance*o.observer_distance) as reduced_mag, o.apparent_mag, o.galactic_latitude
         FROM
             dophot_photometry d,
             orbfit_positions o,
@@ -36,7 +36,7 @@ def atlas_SQL_query(cnx,mpc_number=4986,filter="all"):
         """ % locals()
     else:
         sqlQuery_alan = u"""
-        SELECT d.mjd, d.m,  d.dfitmag as merr, a.filter, o.observer_distance, o.heliocentric_distance, o.phase_angle, d.m - 5*log10(o.heliocentric_distance*o.observer_distance) as reduced_mag, o.apparent_mag
+        SELECT d.mjd, d.m,  d.dfitmag as merr, a.filter, o.observer_distance, o.heliocentric_distance, o.phase_angle, d.m - 5*log10(o.heliocentric_distance*o.observer_distance) as reduced_mag, o.apparent_mag, o.galactic_latitude
         FROM
             dophot_photometry d,
             orbfit_positions o,
