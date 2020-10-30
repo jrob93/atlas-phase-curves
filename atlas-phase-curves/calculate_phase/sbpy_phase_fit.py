@@ -55,10 +55,20 @@ param_converge_check=0.01 # the model is fit until the change in parameters (e.g
 max_iters=30 # maximum number of attempts at fitting and cutting
 std=2 # standard deviation of the sigma data clip
 mag_err_threshold = 0.1 # limit for the error of "good" data, we record N_mag_err number of data points with error < mag_err_threshold
+mag_err_small = 0.01 # we discount observations with error less than this
+gal_lat_cut=10 # galatic latitude cut in degrees
 push_fit=True # flag to push fit to database
 plot_fig=False # flag to generate plot for each object
 show_fig=False # flag to display interactive plot
 save_fig=False # flag to save the figure
+# push_fit=False # flag to push fit to database
+# plot_fig=True # flag to generate plot for each object
+# show_fig=False # flag to display interactive plot
+# save_fig=True # flag to save the figure
+
+if not show_fig:
+    import matplotlib
+    matplotlib.use('agg') # use agg backend to stop python stealing focus when plotting
 
 utc_date_now=datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S") # time at which the script is run (UTC)
 
@@ -100,21 +110,22 @@ cursor1 = cnx1.cursor()
 
 # connect to the database to write to
 # !!! too many connections! use the same connection but switch db in qry?
-config2 = {
-  'user': 'af',
-  'password': 'afPass',
-  'host': 'localhost',
-  'port': '3308',
-  'database': 'jamie_test_db',
-  'raise_on_warnings': True
-}
-cnx2 = mysql.connector.connect(**config2)
-cursor2 =cnx2.cursor()
-# !!! merge conections when we start writing to the same db, try:
-# cnx2 = cnx1
-# cursor2 = cursor1
+# config2 = {
+#   'user': 'af',
+#   'password': 'afPass',
+#   'host': 'localhost',
+#   'port': '3308',
+#   'database': 'jamie_test_db',
+#   'raise_on_warnings': True
+# }
+# cnx2 = mysql.connector.connect(**config2)
+# cursor2 =cnx2.cursor()
+# tab_name="test_table2"
 
-tab_name="test_table2"
+# !!! merge conections when we start writing to the same db, try:
+cnx2 = cnx1
+cursor2 = cursor1
+tab_name="atlas_phase_fits"
 
 # get the last bits of data. might be out of date if rockatlas isn't running...?
 qry_obj1=u"""SELECT
@@ -159,7 +170,9 @@ mpc_check=cursor2.fetchone()[0]
 # load data to be fitted, loads both filters (o & c)
 data_all_filt=atlas_SQL_query(cnx=cnx1,mpc_number=obj_number)
 detection_count=len(data_all_filt) # note that atlas_objects may not have up to date detection count...
-# print(data_all_filt)
+print(data_all_filt)
+print(list(data_all_filt))
+# exit()
 
 if mpc_check==0:
 
@@ -272,8 +285,12 @@ for filt in filters:
         data_zero_err=data[data['merr']==0]
         data=data[data['merr']!=0]
         # drop measurements with small (or zero) uncertainty MOVE THIS TO A VARIABLE UP TOP!
-        data_small_err=data[data['merr']<0.01]
-        data=data[~(data['merr']<0.01)]
+        data_small_err=data[data['merr']<mag_err_small]
+        data=data[~(data['merr']<mag_err_small)]
+
+        # drop measurements near galactic plane
+        data_gal=data[np.absolute(data["galactic_latitude"])<gal_lat_cut]
+        data=data[~(np.absolute(data["galactic_latitude"])<gal_lat_cut)]
 
         if len(data)==0:
             print("no data, cannot fit")
@@ -406,10 +423,10 @@ for filt in filters:
                         print("push fit to db")
 
                         HG_params_str=""
-                        for k in range(len(phase_curve[i])):
+                        for p in range(len(phase_curve[i])):
                             HG_params_str+="phase_curve_{}%(ms)s_%(filt)s={},phase_curve_{}_err%(ms)s_%(filt)s={},".format(
-                            phase_curve[i][k],params[k],
-                            phase_curve[i][k],param_err_x[k]
+                            phase_curve[i][p],params[p],
+                            phase_curve[i][p],param_err_x[p]
                             ) % locals()
 
                         qry = u"""UPDATE %(tab_name)s SET
@@ -453,6 +470,8 @@ for filt in filters:
                         # highlight any measurements with zero uncertainty
                         ax1.scatter(data_zero_err['phase_angle'],data_zero_err['reduced_mag'],c='r',marker="+",s=50)
                         ax1.scatter(data_small_err['phase_angle'],data_small_err['reduced_mag'],edgecolor='r',facecolor="none",marker="o",s=50)
+                        # highlight low galactic latitude
+                        ax1.scatter(data_gal['phase_angle'],data_gal['reduced_mag'],c='r',marker="x",s=50)
 
                         # plot iterative fits and cuts
                         alpha_fit=np.linspace(np.amin(alpha),np.amax(alpha),100)
