@@ -45,11 +45,11 @@ if warning_flag==1:
     import warnings
     warnings.filterwarnings('ignore')
 
-print(filters)
+# print(filters)
 
 # define object and some flags
 obj_number=mpc_number
-print(mpc_number)
+# print(mpc_number)
 low_alpha_cut=5.0*u.deg # we want to quantify how many data points are fit at low phase angles, alpha < low_alpha_cut
 param_converge_check=0.01 # the model is fit until the change in parameters (e.g. H and G) is less than param_converge_check (or max iterations is reached)
 max_iters=30 # maximum number of attempts at fitting and cutting
@@ -57,7 +57,7 @@ std=2 # standard deviation of the sigma data clip
 mag_err_threshold = 0.1 # limit for the error of "good" data, we record N_mag_err number of data points with error < mag_err_threshold
 mag_err_small = 0.01 # we discount observations with error less than this
 gal_lat_cut=10 # galatic latitude cut in degrees
-push_fit=True # flag to push fit to database
+push_fit=False # flag to push fit to database
 plot_fig=False # flag to generate plot for each object
 show_fig=False # flag to display interactive plot
 save_fig=False # flag to save the figure
@@ -170,8 +170,8 @@ mpc_check=cursor2.fetchone()[0]
 # load data to be fitted, loads both filters (o & c)
 data_all_filt=atlas_SQL_query(cnx=cnx1,mpc_number=obj_number)
 detection_count=len(data_all_filt) # note that atlas_objects may not have up to date detection count...
-print(data_all_filt)
-print(list(data_all_filt))
+# print(data_all_filt)
+# print(list(data_all_filt))
 # exit()
 
 if mpc_check==0:
@@ -266,7 +266,7 @@ for filt in filters:
         mag_cut_iter_list=[]
         alpha_cut_iter_list=[]
 
-        print("fit {}, filter {}".format(model_names_str[i],filt))
+        print("{}: fit {}, filter {}".format(mpc_number,model_names_str[i],filt))
 
         # initialise the data that we will iteratively fit and cut
         data=data_filt
