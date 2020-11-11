@@ -8,7 +8,8 @@ import subprocess
 
 def phase_fit_func(mpc_number):
     # !!! use try/except to append to list of errors?
-    py_cmd="python sbpy_phase_fit_data_clip_push.py -n {} > tmp".format(mpc_number)
+    #py_cmd="python sbpy_phase_fit_data_clip_push.py -n {} > tmp".format(mpc_number)
+    py_cmd="python sbpy_phase_fit.py -n {} -w 1 > tmp".format(mpc_number)
     print(py_cmd)
     subprocess.Popen(py_cmd,shell=True).wait()
     return
@@ -36,7 +37,9 @@ cnx.close()
 #mpc_number_list=np.random.choice(df['mpc_number'].astype(int),10,replace=False)
 mpc_number_list=df['mpc_number'].astype(int)
 #mpc_number_list=mpc_number_list[mpc_number_list>11350]
-mpc_number_list=mpc_number_list[mpc_number_list>95226]
+#mpc_number_list=mpc_number_list[mpc_number_list>95226]
+#mpc_number_list=mpc_number_list[mpc_number_list>197120]
+
 print(len(mpc_number_list))
 #exit()
 # """
@@ -48,9 +51,11 @@ print(len(mpc_number_list))
 # ,95251,95252,95253,95254,95255,95256,95257,95258,95259,95260,95261,95262
 # ,95263,95264,95265,95266,95267,95268,95269,95270,95271,95272,95273,95274
 # ,95275,95276]
-mpc_number_list=mpc_number_list[:120]
+#mpc_number_list=mpc_number_list[:1000]
+#mpc_number_list=mpc_number_list[:40]
 
-#print(mpc_number_list)
+print(mpc_number_list)
+#exit()
 
 # add mpc_number or date requirements to run?
 # run in reverse date order so that objects that have not been calculated are done first?
@@ -71,7 +76,7 @@ mpc_number_list=mpc_number_list[:120]
 # exit()
 
 # set up pool and fit phase
-# threads=4
+#threads=40
 threads=multiprocessing.cpu_count()
 
 jobs_done=0
@@ -98,4 +103,4 @@ while len(mpc_number_list)>0:
 
     print()
 
-    exit()
+    # exit()
