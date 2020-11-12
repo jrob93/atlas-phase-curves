@@ -12,6 +12,7 @@ import subprocess
 import sys
 from atlas_SQL_query_df import atlas_SQL_query
 import datetime
+# import time
 
 # !!! FUNCTIONALISE THIS?
 parser = OptionParser()
@@ -19,7 +20,8 @@ parser.add_option( "-n", "--mpc-number", dest="mpc_number", help="mpc_number", m
 parser.add_option( "-s", "--save-path", dest="save_path", help="save_path", metavar="SAVE_PATH" ) # path to save figures
 parser.add_option( "-f", "--filter", dest="filter", help="filter", metavar="FILTER" ) # filters to use, declare o or c, default is both
 parser.add_option( "-w", "--warnings", dest="warnings", help="warnings", metavar="WARNINGS" ) # Suppress warnings?
-# ADD AN MJD RANGE?
+parser.add_option( "-i", "--start-date", dest="start_date", help="start_date", metavar="START_DATE" ) # starts date for data
+parser.add_option( "-j", "--end-date", dest="end_date", help="end_date", metavar="END_DATE" ) # starts date for data
 
 (options,args)=parser.parse_args()
 
@@ -39,6 +41,10 @@ if options.warnings:
     warning_flag=int(options.warnings)
 else:
     warning_flag=0
+# if options.start_date:
+#     start_date=int(start_date)
+# if options.end_date:
+#     end_date=int(end_date)
 
 # Suppress warnings if the output is annoying. Be very careful suppressing warnings...
 if warning_flag==1:
@@ -49,7 +55,7 @@ if warning_flag==1:
 
 # define object and some flags
 obj_number=mpc_number
-# print(mpc_number)
+print(mpc_number)
 low_alpha_cut=5.0*u.deg # we want to quantify how many data points are fit at low phase angles, alpha < low_alpha_cut
 param_converge_check=0.01 # the model is fit until the change in parameters (e.g. H and G) is less than param_converge_check (or max iterations is reached)
 max_iters=30 # maximum number of attempts at fitting and cutting
@@ -57,14 +63,14 @@ std=2 # standard deviation of the sigma data clip
 mag_err_threshold = 0.1 # limit for the error of "good" data, we record N_mag_err number of data points with error < mag_err_threshold
 mag_err_small = 0.01 # we discount observations with error less than this
 gal_lat_cut=10 # galatic latitude cut in degrees
-push_fit=False # flag to push fit to database
+# push_fit=False # flag to push fit to database
+# plot_fig=False # flag to generate plot for each object
+# show_fig=False # flag to display interactive plot
+# save_fig=False # flag to save the figure
+push_fit=True # flag to push fit to database
 plot_fig=False # flag to generate plot for each object
 show_fig=False # flag to display interactive plot
 save_fig=False # flag to save the figure
-# push_fit=False # flag to push fit to database
-# plot_fig=True # flag to generate plot for each object
-# show_fig=False # flag to display interactive plot
-# save_fig=True # flag to save the figure
 
 if not show_fig:
     import matplotlib
@@ -170,6 +176,15 @@ mpc_check=cursor2.fetchone()[0]
 # load data to be fitted, loads both filters (o & c)
 data_all_filt=atlas_SQL_query(cnx=cnx1,mpc_number=obj_number)
 detection_count=len(data_all_filt) # note that atlas_objects may not have up to date detection count...
+
+# start = time.process_time()
+# cut by date range. Note that different filters may have different dates/epochs!
+if options.start_date:
+    data_all_filt=data_all_filt[data_all_filt['mjd']>float(options.start_date)]
+if options.end_date:
+    data_all_filt=data_all_filt[data_all_filt['mjd']<float(options.end_date)]
+# print(time.process_time() - start)
+
 # print(data_all_filt)
 # print(list(data_all_filt))
 # exit()
@@ -422,6 +437,20 @@ for filt in filters:
 
                         print("push fit to db")
 
+                        # print(params)
+                        # print(np.isnan(params))
+                        # print(param_err_x)
+                        # print(np.isnan(param_err_x))
+                        # for prms in [params, param_err_x]:
+                        #     prms=list(prms)
+                        # #     mask=np.isnan(prms)
+                        # #     prms[mask]="NaN"
+                        # #     print(prms)
+                        # param_err_x[0]=None
+                        # print(params)
+                        # print(param_err_x)
+
+
                         HG_params_str=""
                         for p in range(len(phase_curve[i])):
                             HG_params_str+="phase_curve_{}%(ms)s_%(filt)s={},phase_curve_{}_err%(ms)s_%(filt)s={},".format(
@@ -445,7 +474,9 @@ for filt in filters:
                         phase_curve_N_mag_err%(ms)s_%(filt)s=%(N_mag_err)s
                         WHERE mpc_number=%(mpc_number)s;""" % locals()
 
-                        # print(qry)
+                        qry=qry.replace('=nan', '=NULL') # mysql doesn't understand nan, needs NULL
+
+                        print(qry)
                         # exit()
 
                         cursor2.execute(qry)
