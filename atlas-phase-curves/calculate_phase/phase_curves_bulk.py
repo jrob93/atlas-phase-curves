@@ -11,8 +11,8 @@ import os
 def phase_fit_func(mpc_number):
     # !!! use try/except to append to list of errors?
     #py_cmd="python sbpy_phase_fit_data_clip_push.py -n {} > tmp".format(mpc_number)
-    # py_cmd="python sbpy_phase_fit.py -n {} -w 1 > tmp".format(mpc_number)
-    py_cmd="python sbpy_phase_fit.py -n {}".format(mpc_number)
+    py_cmd="python sbpy_phase_fit.py -n {} -w 1 > tmp".format(mpc_number)
+    # py_cmd="python sbpy_phase_fit.py -n {}".format(mpc_number)
     print(py_cmd)
     subprocess.Popen(py_cmd,shell=True).wait()
     return
