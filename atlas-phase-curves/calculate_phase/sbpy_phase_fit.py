@@ -63,14 +63,14 @@ std=2 # standard deviation of the sigma data clip
 mag_err_threshold = 0.1 # limit for the error of "good" data, we record N_mag_err number of data points with error < mag_err_threshold
 mag_err_small = 0.01 # we discount observations with error less than this
 gal_lat_cut=10 # galatic latitude cut in degrees
-# push_fit=False # flag to push fit to database
-# plot_fig=False # flag to generate plot for each object
-# show_fig=False # flag to display interactive plot
-# save_fig=False # flag to save the figure
-push_fit=True # flag to push fit to database
+push_fit=False # flag to push fit to database
 plot_fig=False # flag to generate plot for each object
 show_fig=False # flag to display interactive plot
 save_fig=False # flag to save the figure
+# push_fit=False # flag to push fit to database
+# plot_fig=True # flag to generate plot for each object
+# show_fig=False # flag to display interactive plot
+# save_fig=True # flag to save the figure
 
 if not show_fig:
     import matplotlib
@@ -202,7 +202,7 @@ if mpc_check==0:
     orbital_elements_id,
     primaryId)
     VALUES
-    (%(mpc_number)s,{},{},{},{},{},'{}',{},{});""".format(tab_name,
+    (%(mpc_number)s,{},{},{},{},{},"{}",{},{});""".format(tab_name,
     str(df_obj['dateLastModified'].iloc[0]),
     detection_count,
     float(df_obj['last_detection_mjd']),
@@ -221,7 +221,7 @@ else:
     last_detection_mjd={},
     last_photometry_update_date_c={},
     last_photometry_update_date_o={},
-    name='{}',
+    name="{}",
     orbital_elements_id={},
     primaryId={}
     WHERE mpc_number=%(mpc_number)s;""".format(tab_name,
@@ -242,8 +242,9 @@ else:
 
 # !!! WHAT TO DO WITH updated FLAG? use it to track number of times the fit has been done? Change to a date?
 
-cursor2.execute(qry_obj)
-cnx2.commit()
+if push_fit==True: # only update the entry if we are going to push results
+    cursor2.execute(qry_obj)
+    cnx2.commit()
 
 for filt in filters:
 
