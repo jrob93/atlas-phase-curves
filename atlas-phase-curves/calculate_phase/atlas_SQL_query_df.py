@@ -17,7 +17,7 @@ import pandas as pd
 def atlas_SQL_query(cnx,mpc_number=4986,filter="all"):
 
     # print(cnx)
-    orbital_elements_id=mpc_number
+    # orbital_elements_id=mpc_number
 
     # write out the sql query
 
@@ -56,14 +56,22 @@ def atlas_SQL_query(cnx,mpc_number=4986,filter="all"):
 
     return df
 
-# # connect to the database
-# config = {
-#   'user': 'af',
-#   'password': 'afPass',
-#   'host': 'localhost',
-#   'port': '3308',
-#   'database': 'atlas_moving_objects',
-#   'raise_on_warnings': True
-# }
-# cnx = mysql.connector.connect(**config)
-# print(atlas_SQL_query(mpc_number=4985,cnx=cnx))
+if __name__ == "__main__":
+
+    # # connect to the database
+    # config = {
+    #   'user': 'af',
+    #   'password': 'afPass',
+    #   'host': 'localhost',
+    #   'port': '3308',
+    #   'database': 'atlas_moving_objects',
+    #   'raise_on_warnings': True
+    # }
+    # cnx = mysql.connector.connect(**config)
+
+    from atlas_database_connection import database_connection
+    cnx=database_connection().connect()
+    print(cnx)
+    print(atlas_SQL_query(mpc_number=4985,cnx=cnx))
+    print("atlas_SQL_query_df!!!!")
+    exit()
