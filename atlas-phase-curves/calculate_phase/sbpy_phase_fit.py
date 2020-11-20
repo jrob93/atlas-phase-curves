@@ -2,14 +2,15 @@
 
 import numpy as np
 import astropy.units as u
+# from astropy import units as u
 from astropy.modeling.fitting import LevMarLSQFitter
 from sbpy.photometry import HG, HG1G2, HG12, HG12_Pen16
 import pandas as pd
 import os
 import mysql.connector
-from optparse import OptionParser
-import subprocess
-import sys
+# from optparse import OptionParser
+# import subprocess
+# import sys
 import datetime
 # import time
 
@@ -138,6 +139,51 @@ class phase_fit():
         # print(df_obj[['detection_count',  'detection_count_c',  'detection_count_o']])
         return df_obj
 
+    def get_obj_HG(self,cnx,mpc_num):
+        # get the astorb H and G (B89)
+        # qry_HG="select G_slope, H_abs_mag from orbital_elements where primaryId='{}';".format(self.mpc_number)
+        qry_HG="select G_slope, H_abs_mag from orbital_elements where mpc_number='{}';".format(mpc_num)
+        # print(qry_HG)
+        df_HG=pd.read_sql_query(qry_HG,cnx)
+        return df_HG
+
+    def get_obj_meta(self,cnx,mpc_num):
+
+        # get the last bits of data. might be out of date if rockatlas isn't running...?
+        qry_obj1=u"""SELECT
+        a.dateLastModified,
+        a.detection_count,
+        a.detection_count_c,
+        a.detection_count_o,
+        a.last_detection_mjd,
+        a.last_photometry_update_date_c,
+        a.last_photometry_update_date_o,
+        a.mpc_number,
+        a.name,
+        a.orbital_elements_id,
+        a.primaryId,
+        a.updated,
+        o.G_slope,
+        o.H_abs_mag
+        FROM atlas_objects a, orbital_elements o WHERE a.mpc_number=%(mpc_num)s AND o.mpc_number=%(mpc_num)s
+        """ % locals()
+        # print(qry_obj1)
+
+        df_obj=pd.read_sql_query(qry_obj1,cnx)
+        # print(df_obj)
+        # print(list(df_obj))
+
+        # fix the date strings
+        dates=["dateLastModified","last_photometry_update_date_c","last_photometry_update_date_o"]
+        for d in dates:
+            if df_obj[d].iloc[0] is not None:
+                df_obj.loc[0,d]="'{}'".format(str(df_obj[d].iloc[0]))
+        # for some reason None needs changed to Null?
+        df_obj=df_obj.fillna(value="NULL")
+        # print(df_obj.to_string())
+        # print(df_obj[['detection_count',  'detection_count_c',  'detection_count_o']])
+        return df_obj
+
     def database_obj_entry(self,mpc_num,df_obj,mpc_check):
 
         if mpc_check==0:
@@ -185,9 +231,92 @@ class phase_fit():
 
         return qry_obj
 
+    def database_obj_entry2(self,mpc_num,df_obj,mpc_check):
+
+        insert_obj = u"""(mpc_number,
+        dateLastModified,
+        detection_count,
+        last_detection_mjd,
+        last_photometry_update_date_c,
+        last_photometry_update_date_o,
+        name,
+        orbital_elements_id,
+        primaryId)
+        VALUES
+        (%(mpc_num)s,{},{},{},{},{},"{}",{},{})\n""".format(str(df_obj['dateLastModified'].iloc[0]),
+        int(df_obj['detection_count'].iloc[0]),
+        float(df_obj['last_detection_mjd']),
+        str(df_obj['last_photometry_update_date_c'].iloc[0]),
+        str(df_obj['last_photometry_update_date_o'].iloc[0]),
+        str(df_obj['name'].iloc[0]),
+        int(df_obj['orbital_elements_id']),
+        int(df_obj['primaryId'])) % locals()
+        # insert_obj="insert"
+        update_obj = u"""dateLastModified={},
+        detection_count={},
+        last_detection_mjd={},
+        last_photometry_update_date_c={},
+        last_photometry_update_date_o={},
+        name="{}",
+        orbital_elements_id={},
+        primaryId={}""".format(str(df_obj['dateLastModified'].iloc[0]),
+        int(df_obj['detection_count'].iloc[0]),
+        float(df_obj['last_detection_mjd']),
+        str(df_obj['last_photometry_update_date_c'].iloc[0]),
+        str(df_obj['last_photometry_update_date_o'].iloc[0]),
+        str(df_obj['name'].iloc[0]),
+        int(df_obj['orbital_elements_id']),
+        int(df_obj['primaryId'])) % locals()
+        # update_obj="update"
+        qry_obj=u"""INSERT INTO {} {} ON DUPLICATE KEY UPDATE {};""".format(self.tab_name,insert_obj,update_obj) % locals()
+
+        return qry_obj
+
+    def push_fit_db(self,params,param_err_x,pc,ms,filt,detection_count_filt,N_data_fit,alpha_min,alpha_max,phase_angle_range,N_alpha_low,N_nights,N_iter,nfev,ier,N_mag_err):
+
+        # how to pass large numbers of parameters? Define a dataframe in the class?
+        print("push fit to db")
+
+        HG_params_str=""
+        for p in range(len(pc)):
+            HG_params_str+="phase_curve_{}%(ms)s_%(filt)s={},phase_curve_{}_err%(ms)s_%(filt)s={},".format(
+            pc[p],params[p],
+            pc[p],param_err_x[p]
+            ) % locals()
+
+        tab_name=self.tab_name
+        utc_date_now=self.utc_date_now
+        mpc_number=self.mpc_number
+
+        qry = u"""UPDATE %(tab_name)s SET
+        detection_count_%(filt)s=%(detection_count_filt)s,
+        %(HG_params_str)s
+        phase_curve_N_fit%(ms)s_%(filt)s=%(N_data_fit)s,
+        phase_curve_alpha_min%(ms)s_%(filt)s=%(alpha_min)s,
+        phase_curve_alpha_max%(ms)s_%(filt)s=%(alpha_max)s,
+        phase_angle_range_%(filt)s=%(phase_angle_range)s,
+        phase_curve_N_alpha_low%(ms)s_%(filt)s=%(N_alpha_low)s,
+        phase_curve_N_nights%(ms)s_%(filt)s=%(N_nights)s,
+        phase_curve_N_iter%(ms)s_%(filt)s=%(N_iter)s,
+        phase_curve_refresh_date_%(filt)s='%(utc_date_now)s',
+        phase_curve_nfev%(ms)s_%(filt)s=%(nfev)s,
+        phase_curve_ier%(ms)s_%(filt)s=%(ier)s,
+        phase_curve_N_mag_err%(ms)s_%(filt)s=%(N_mag_err)s
+        WHERE mpc_number=%(mpc_number)s;""" % locals()
+
+        qry=qry.replace('=nan', '=NULL') # mysql doesn't understand nan, needs NULL
+
+        print(qry)
+        # exit()
+
+        self.cursor2.execute(qry)
+        self.cnx2.commit()
+
     def plot_phase_fit(self,model,model_str,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
     data_filt,data_zero_err,data_small_err,data_gal):
         # plot a figure
+
+        # how to pass large numbers of parameters?
 
         if not self.show_fig:
             import matplotlib
@@ -274,16 +403,21 @@ class phase_fit():
         print(data_all_filt)
 
         # get the object metadata
-        df_obj=self.get_obj_metadata(self.cnx1,self.mpc_number)
+        # df_obj=self.get_obj_metadata(self.cnx1,self.mpc_number)
+        df_obj=self.get_obj_meta(self.cnx1,self.mpc_number)
         print(df_obj)
 
         # update the detection_count
         df_obj["detection_count"]=len(data_all_filt) # note that atlas_objects may not have up to date detection count...
 
-        # get the astorb H and G (B89)
-        qry_HG="select G_slope, H_abs_mag from orbital_elements where primaryId='{}';".format(self.mpc_number)
-        df_HG=pd.read_sql_query(qry_HG,self.cnx1)
-        print(df_HG)
+        # # get the astorb H and G (B89)
+        # # qry_HG="select G_slope, H_abs_mag from orbital_elements where primaryId='{}';".format(self.mpc_number)
+        # qry_HG="select G_slope, H_abs_mag from orbital_elements where mpc_number='{}';".format(self.mpc_number)
+        # print(qry_HG)
+        # df_HG=pd.read_sql_query(qry_HG,self.cnx1)
+        # df_HG=self.get_obj_HG(self.cnx1,self.mpc_number)
+        # print(df_HG)
+        # exit()
 
         # is the object already in the tab_name at the storage database?
         self.cursor2.execute("SELECT COUNT(1) FROM {} where mpc_number={}".format(self.tab_name,self.mpc_number))
@@ -291,16 +425,21 @@ class phase_fit():
         print(mpc_check)
 
         if self.push_fit==True: # only update the entry if we are going to push results
+            # MOVE THIS TO PUSH FIT VALUES
             qry_obj = self.database_obj_entry(self.mpc_number,df_obj,mpc_check)
+            # qry_obj = self.database_obj_entry2(self.mpc_number,df_obj,mpc_check)
             print(qry_obj)
-            # self.cursor2.execute(qry_obj)
-            # self.cnx2.commit()
+            self.cursor2.execute(qry_obj)
+            self.cnx2.commit()
+            # exit()
 
         for filt in self.filters:
 
             # H and G values for the predicted fit
-            G_slope=float(df_HG.iloc[0]['G_slope'])
-            H_abs_mag=float(df_HG.iloc[0]['H_abs_mag'])
+            # G_slope=float(df_HG.iloc[0]['G_slope'])
+            # H_abs_mag=float(df_HG.iloc[0]['H_abs_mag'])
+            G_slope=float(df_obj.iloc[0]['G_slope'])
+            H_abs_mag=float(df_obj.iloc[0]['H_abs_mag'])
             # print("G_slope = {}\nH_abs_mag = {}".format(G_slope,H_abs_mag))
 
             # do filter correction from V band (Heinze et al. 2020)
@@ -320,6 +459,7 @@ class phase_fit():
             for i,model_name in enumerate(self.model_names):
 
                 ms=self.model_short[i]
+                pc=self.phase_curve[i]
 
                 # if ms!=model_short[1]:
                 #     continue
@@ -381,7 +521,7 @@ class phase_fit():
 
                     else:
                         # apply the fitter to the data
-                        if len(alpha)<=len(self.phase_curve[i]): # check that there is enough data to fit
+                        if len(alpha)<=len(pc): # check that there is enough data to fit
                             print("less data to fit than parameters")
                             break
                         model = self.fitter(model_name, alpha, mag, weights=1.0/np.array(mag_err)) # fit using weights by uncertainty
@@ -477,40 +617,42 @@ class phase_fit():
 
                             if self.push_fit==True:
 
-                                print("push fit to db")
+                                self.push_fit_db(params,param_err_x,pc,ms,filt,detection_count_filt,N_data_fit,alpha_min,alpha_max,phase_angle_range,N_alpha_low,N_nights,N_iter,nfev,ier,N_mag_err)
 
-                                HG_params_str=""
-                                for p in range(len(self.phase_curve[i])):
-                                    HG_params_str+="phase_curve_{}%(ms)s_%(filt)s={},phase_curve_{}_err%(ms)s_%(filt)s={},".format(
-                                    self.phase_curve[i][p],params[p],
-                                    self.phase_curve[i][p],param_err_x[p]
-                                    ) % locals()
-
-                                tab_name=self.tab_name
-                                utc_date_now=self.utc_date_now
-                                mpc_number=self.mpc_number
-
-                                qry = u"""UPDATE %(tab_name)s SET
-                                detection_count_%(filt)s=%(detection_count_filt)s,
-                                %(HG_params_str)s
-                                phase_curve_N_fit%(ms)s_%(filt)s=%(N_data_fit)s,
-                                phase_curve_alpha_min%(ms)s_%(filt)s=%(alpha_min)s,
-                                phase_curve_alpha_max%(ms)s_%(filt)s=%(alpha_max)s,
-                                phase_angle_range_%(filt)s=%(phase_angle_range)s,
-                                phase_curve_N_alpha_low%(ms)s_%(filt)s=%(N_alpha_low)s,
-                                phase_curve_N_nights%(ms)s_%(filt)s=%(N_nights)s,
-                                phase_curve_N_iter%(ms)s_%(filt)s=%(N_iter)s,
-                                phase_curve_refresh_date_%(filt)s='%(utc_date_now)s',
-                                phase_curve_nfev%(ms)s_%(filt)s=%(nfev)s,
-                                phase_curve_ier%(ms)s_%(filt)s=%(ier)s,
-                                phase_curve_N_mag_err%(ms)s_%(filt)s=%(N_mag_err)s
-                                WHERE mpc_number=%(mpc_number)s;""" % locals()
-
-                                qry=qry.replace('=nan', '=NULL') # mysql doesn't understand nan, needs NULL
-
-                                print(qry)
-                                # exit()
-
+                                # print("push fit to db")
+                                #
+                                # HG_params_str=""
+                                # for p in range(len(self.phase_curve[i])):
+                                #     HG_params_str+="phase_curve_{}%(ms)s_%(filt)s={},phase_curve_{}_err%(ms)s_%(filt)s={},".format(
+                                #     self.phase_curve[i][p],params[p],
+                                #     self.phase_curve[i][p],param_err_x[p]
+                                #     ) % locals()
+                                #
+                                # tab_name=self.tab_name
+                                # utc_date_now=self.utc_date_now
+                                # mpc_number=self.mpc_number
+                                #
+                                # qry = u"""UPDATE %(tab_name)s SET
+                                # detection_count_%(filt)s=%(detection_count_filt)s,
+                                # %(HG_params_str)s
+                                # phase_curve_N_fit%(ms)s_%(filt)s=%(N_data_fit)s,
+                                # phase_curve_alpha_min%(ms)s_%(filt)s=%(alpha_min)s,
+                                # phase_curve_alpha_max%(ms)s_%(filt)s=%(alpha_max)s,
+                                # phase_angle_range_%(filt)s=%(phase_angle_range)s,
+                                # phase_curve_N_alpha_low%(ms)s_%(filt)s=%(N_alpha_low)s,
+                                # phase_curve_N_nights%(ms)s_%(filt)s=%(N_nights)s,
+                                # phase_curve_N_iter%(ms)s_%(filt)s=%(N_iter)s,
+                                # phase_curve_refresh_date_%(filt)s='%(utc_date_now)s',
+                                # phase_curve_nfev%(ms)s_%(filt)s=%(nfev)s,
+                                # phase_curve_ier%(ms)s_%(filt)s=%(ier)s,
+                                # phase_curve_N_mag_err%(ms)s_%(filt)s=%(N_mag_err)s
+                                # WHERE mpc_number=%(mpc_number)s;""" % locals()
+                                #
+                                # qry=qry.replace('=nan', '=NULL') # mysql doesn't understand nan, needs NULL
+                                #
+                                # print(qry)
+                                # # exit()
+                                #
                                 # cursor2.execute(qry)
                                 # cnx2.commit()
 
@@ -543,6 +685,7 @@ class phase_fit():
                     k+=1
 
         # close all database connections
+        # CLOSE CURSORS TOO?
         self.cnx1.disconnect()
         self.cnx2.disconnect()
 
@@ -552,19 +695,20 @@ if __name__ == "__main__":
     mpc_number=4985
     # fit = phase_fit(mpc_number,push_fit_flag=True,plot_fig_flag=True,save_fig_flag=True)
     fit = phase_fit(mpc_number,push_fit_flag=True)#,plot_fig_flag=True,save_fig_flag=True)
-    print(fit.mpc_number)
-    print(fit.low_alpha_cut)
-    print(fit.__dict__)
-    # data=np.random.rand(10)
-    # data2=np.zeros(10)+np.median(data)
-    # print(data,np.median(data))
-    # print(data2)
-    # print(fit.data_clip_func(data,data2,fit.std,fit.std))
-    print(fit.clip_label)
-    print(fit.cnx1)
-    print(fit.tab_name)
+    # print(fit.mpc_number)
+    # print(fit.low_alpha_cut)
+    # print(fit.__dict__)
+    # # data=np.random.rand(10)
+    # # data2=np.zeros(10)+np.median(data)
+    # # print(data,np.median(data))
+    # # print(data2)
+    # # print(fit.data_clip_func(data,data2,fit.std,fit.std))
+    # print(fit.clip_label)
+    # print(fit.cnx1)
+    # print(fit.tab_name)
+
     fit.calculate()
-    # fit.plot_phase_fit()
+
     exit()
 
 """parser = OptionParser()
