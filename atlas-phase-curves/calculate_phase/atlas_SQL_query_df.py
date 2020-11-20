@@ -11,8 +11,9 @@ Add option for object number or name
 This function version returns the dataframe
 """
 
-import mysql.connector
-import pandas as pd
+# import mysql.connector
+# import pandas as pd
+from pandas import read_sql_query
 
 def atlas_SQL_query(cnx,mpc_number=4986,filter="all"):
 
@@ -50,7 +51,8 @@ def atlas_SQL_query(cnx,mpc_number=4986,filter="all"):
 
     # perform the query and store results as a dataframe
     sqlQuery=sqlQuery_alan
-    df=pd.read_sql_query(sqlQuery,cnx)
+    # df=pd.read_sql_query(sqlQuery,cnx)
+    df=read_sql_query(sqlQuery,cnx)
 
     # cnx.close()
 
