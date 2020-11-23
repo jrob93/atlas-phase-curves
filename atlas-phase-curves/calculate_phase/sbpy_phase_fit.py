@@ -69,7 +69,7 @@ class phase_fit():
     def __init__(self,
         mpc_number,
         save_path=".",
-        push_fit_flag=False,plot_fig_flag=False,show_fig_flag=False,save_fig_flag=False,
+        push_fit_flag=False,plot_fig_flag=False,show_fig_flag=False,save_fig_flag=False,hide_warning_flag=False,
         start_date=False,end_date=False,
         filter_list=["o","c"]):
 
@@ -103,6 +103,11 @@ class phase_fit():
         # self.df_obj_datafit=pd.Series(data=np.zeros(len(self.db_columns))+np.nan,index=self.db_columns) # create an empty series to store all values for the object: metadata and fit data
         self.df_obj_datafit=pd.DataFrame(data=[],columns=self.db_columns) # create an empty series to store all values for the object: metadata and fit data
         print(self.df_obj_datafit)
+
+        if hide_warning_flag==1:
+            import warnings
+            warnings.filterwarnings('ignore')
+
 
     def get_obj_data(self,cnx,mpc_num,t_start=False,t_end=False):
         # load data to be fitted, loads both filters (o & c)
@@ -353,11 +358,12 @@ class phase_fit():
             # if np.isnan(vals[i]):
             if vals[i].lower()=="nan": # mysql doesn't understand nan, needs NULL
                 vals[i]="NULL"
-            if cols[i] in ["name","phase_curve_refresh_date_o","phase_curve_refresh_date_c"]:
-                col_vals_update+="{}=\"{}\",".format(cols[i],vals[i])
-                vals[i]="\"{}\"".format(vals[i])
             else:
-                col_vals_update+="{}={},".format(cols[i],vals[i])
+                if cols[i] in ["name","phase_curve_refresh_date_o","phase_curve_refresh_date_c"]: # these fields are strings and need quotation marks
+                    col_vals_update+="{}=\"{}\",".format(cols[i],vals[i])
+                    vals[i]="\"{}\"".format(vals[i])
+                else:
+                    col_vals_update+="{}={},".format(cols[i],vals[i])
         col_vals_update=col_vals_update[:-1]
         # print(col_vals_update)
 
@@ -462,19 +468,19 @@ class phase_fit():
 
         # get the object observation data
         data_all_filt=self.get_obj_data(self.cnx1,self.mpc_number,self.start_date,self.end_date)
-        print(data_all_filt)
+        # print(data_all_filt)
 
         # get the object metadata
         # df_obj=self.get_obj_metadata(self.cnx1,self.mpc_number)
         df_obj=self.get_obj_meta(self.cnx1,self.mpc_number)
-        print(df_obj)
+        # print(df_obj)
         d1=df_obj
         d2=self.df_obj_datafit
-        print(d1)
-        print(d2)
+        # print(d1)
+        # print(d2)
         df_obj=d2.append(d1) # add the values to the df
-        print(df_obj.iloc[0].to_string)
-        print(df_obj['phase_curve_H_2M10_o'])
+        # print(df_obj.iloc[0].to_string)
+        # print(df_obj['phase_curve_H_2M10_o'])
         # exit()
 
         # update the detection_count
@@ -489,10 +495,10 @@ class phase_fit():
         # print(df_HG)
         # exit()
 
-        # is the object already in the tab_name at the storage database?
-        self.cursor2.execute("SELECT COUNT(1) FROM {} where mpc_number={}".format(self.tab_name,self.mpc_number))
-        mpc_check=self.cursor2.fetchone()[0]
-        print(mpc_check)
+        # # is the object already in the tab_name at the storage database?
+        # self.cursor2.execute("SELECT COUNT(1) FROM {} where mpc_number={}".format(self.tab_name,self.mpc_number))
+        # mpc_check=self.cursor2.fetchone()[0]
+        # print(mpc_check)
 
         # DO THIS PUSH AT END
         # if self.push_fit==True: # only update the entry if we are going to push results
@@ -790,10 +796,11 @@ class phase_fit():
         self.cnx1.disconnect()
         self.cnx2.disconnect()
 
-        return
+        return 1
 
 if __name__ == "__main__":
-    mpc_number=4985
+    # mpc_number=4985
+    mpc_number=2
     # fit = phase_fit(mpc_number,push_fit_flag=True,plot_fig_flag=True,save_fig_flag=True)
     fit = phase_fit(mpc_number,push_fit_flag=True)#,plot_fig_flag=True,save_fig_flag=True)
     # print(fit.mpc_number)
