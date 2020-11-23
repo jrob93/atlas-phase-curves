@@ -13,6 +13,7 @@ import mysql.connector
 # import sys
 import datetime
 # import time
+from pathlib import Path
 
 # # import our classes
 if __name__ == "__main__": # import other modules as a script
@@ -57,7 +58,10 @@ class phase_fit():
     model_names = [HG(), HG1G2(), HG12(), HG12_Pen16()]
 
     # load the columns used to make the db table (might need to update the path)
-    with open("/Users/jrobinson/atlas-phase-curves/atlas-phase-curves/create_table/atlas_objects_fields.txt","r") as f:
+    # fname_path = Path(__file__).parent / "../create_table/atlas_objects_fields.txt"
+    fname_path = "{}/{}".format(Path(__file__).parent,"../create_table/atlas_objects_fields.txt")
+    print(fname_path)
+    with open(fname_path,"r") as f:
         db_columns=f.readlines()
     db_columns=[d.rstrip() for d in db_columns]
     print(db_columns)
