@@ -74,7 +74,7 @@ print(len(mpc_number_list))
 # ,95263,95264,95265,95266,95267,95268,95269,95270,95271,95272,95273,95274
 # ,95275,95276]
 #mpc_number_list=mpc_number_list[:1000]
-mpc_number_list=mpc_number_list[:40]
+#mpc_number_list=mpc_number_list[:40]
 
 mpc_number_list=list(mpc_number_list)
 print(mpc_number_list)
