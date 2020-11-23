@@ -56,6 +56,12 @@ class phase_fit():
     phase_curve = [["H","G"],["H","G1","G2"],["H","G12"],["H","G12"]]
     model_names = [HG(), HG1G2(), HG12(), HG12_Pen16()]
 
+    # load the columns used to make the db table (might need to update the path)
+    with open("/Users/jrobinson/atlas-phase-curves/atlas-phase-curves/create_table/atlas_objects_fields.txt","r") as f:
+        db_columns=f.readlines()
+    db_columns=[d.rstrip() for d in db_columns]
+    print(db_columns)
+
     def __init__(self,
         mpc_number,
         save_path=".",
@@ -88,6 +94,11 @@ class phase_fit():
         self.cursor2 = self.cursor1
 
         self.tab_name="atlas_phase_fits" # table name within the database
+
+        # create an empty pandas series to hold all object info
+        # self.df_obj_datafit=pd.Series(data=np.zeros(len(self.db_columns))+np.nan,index=self.db_columns) # create an empty series to store all values for the object: metadata and fit data
+        self.df_obj_datafit=pd.DataFrame(data=[],columns=self.db_columns) # create an empty series to store all values for the object: metadata and fit data
+        print(self.df_obj_datafit)
 
     def get_obj_data(self,cnx,mpc_num,t_start=False,t_end=False):
         # load data to be fitted, loads both filters (o & c)
@@ -312,6 +323,50 @@ class phase_fit():
         self.cursor2.execute(qry)
         self.cnx2.commit()
 
+    def push_obj_db(self,df_obj):
+
+        # how to pass large numbers of parameters? Define a dataframe in the class?
+        print("push fit to db")
+
+        tab_name=self.tab_name
+        utc_date_now=self.utc_date_now
+        mpc_number=self.mpc_number
+
+        cols=self.db_columns
+        vals=df_obj[cols].iloc[0]
+        vals=np.array(vals).astype(str)
+
+        print(cols)
+        print(list(df_obj))
+        print(vals)
+        print(len(cols),len(vals))
+        print(len(list(df_obj)))
+
+        col_vals_update=""
+        for i in range(len(cols)):
+            # print(cols[i],vals[i])
+            # get rid of if statement
+            if cols[i] in ["name","phase_curve_refresh_date_o","phase_curve_refresh_date_c"]:
+                col_vals_update+="{}=\"{}\",".format(cols[i],vals[i])
+                vals[i]="\"{}\"".format(vals[i])
+            else:
+                col_vals_update+="{}={},".format(cols[i],vals[i])
+        col_vals_update=col_vals_update[:-1]
+        # print(col_vals_update)
+
+        # qry = u"""UPDATE %(tab_name)s SET {} WHERE mpc_number=%(mpc_number)s;""".format(col_vals_update) % locals()
+
+        # UPDATE TO BE UPDATE/INSERT!
+        qry=u"""INSERT INTO {} ({}) values ({}) ON DUPLICATE KEY UPDATE {};""".format(self.tab_name,",".join(cols), ",".join(vals), col_vals_update)
+
+        qry=qry.replace('=nan', '=NULL') # mysql doesn't understand nan, needs NULL
+
+        print(qry)
+        # exit()
+
+        self.cursor2.execute(qry)
+        self.cnx2.commit()
+
     def plot_phase_fit(self,model,model_str,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
     data_filt,data_zero_err,data_small_err,data_gal):
         # plot a figure
@@ -406,6 +461,14 @@ class phase_fit():
         # df_obj=self.get_obj_metadata(self.cnx1,self.mpc_number)
         df_obj=self.get_obj_meta(self.cnx1,self.mpc_number)
         print(df_obj)
+        d1=df_obj
+        d2=self.df_obj_datafit
+        print(d1)
+        print(d2)
+        df_obj=d2.append(d1) # add the values to the df
+        print(df_obj.iloc[0].to_string)
+        print(df_obj['phase_curve_H_2M10_o'])
+        # exit()
 
         # update the detection_count
         df_obj["detection_count"]=len(data_all_filt) # note that atlas_objects may not have up to date detection count...
@@ -424,14 +487,15 @@ class phase_fit():
         mpc_check=self.cursor2.fetchone()[0]
         print(mpc_check)
 
-        if self.push_fit==True: # only update the entry if we are going to push results
-            # MOVE THIS TO PUSH FIT VALUES
-            qry_obj = self.database_obj_entry(self.mpc_number,df_obj,mpc_check)
-            # qry_obj = self.database_obj_entry2(self.mpc_number,df_obj,mpc_check)
-            print(qry_obj)
-            self.cursor2.execute(qry_obj)
-            self.cnx2.commit()
-            # exit()
+        # DO THIS PUSH AT END
+        # if self.push_fit==True: # only update the entry if we are going to push results
+        #     # MOVE THIS TO PUSH FIT VALUES
+        #     qry_obj = self.database_obj_entry(self.mpc_number,df_obj,mpc_check)
+        #     # qry_obj = self.database_obj_entry2(self.mpc_number,df_obj,mpc_check)
+        #     print(qry_obj)
+        #     # self.cursor2.execute(qry_obj)
+        #     # self.cnx2.commit()
+        #     # exit()
 
         for filt in self.filters:
 
@@ -617,7 +681,33 @@ class phase_fit():
 
                             if self.push_fit==True:
 
-                                self.push_fit_db(params,param_err_x,pc,ms,filt,detection_count_filt,N_data_fit,alpha_min,alpha_max,phase_angle_range,N_alpha_low,N_nights,N_iter,nfev,ier,N_mag_err)
+                                print(df_obj["detection_count_{}".format(filt)])
+
+                                # populate the df_obj dataframe
+                                # add fit to df_obj
+                                df_obj["detection_count_{}".format(filt)]=detection_count_filt
+                                # %(HG_params_str)s
+                                df_obj["phase_curve_N_fit{}_{}".format(ms,filt)]=N_data_fit
+                                df_obj["phase_curve_alpha_min{}_{}".format(ms,filt)]=alpha_min
+                                df_obj["phase_curve_alpha_max{}_{}".format(ms,filt)]=alpha_max
+                                df_obj["phase_angle_range_{}".format(filt)]=phase_angle_range
+                                df_obj["phase_curve_N_alpha_low{}_{}".format(ms,filt)]=N_alpha_low
+                                df_obj["phase_curve_N_nights{}_{}".format(ms,filt)]=N_nights
+                                df_obj["phase_curve_N_iter{}_{}".format(ms,filt)]=N_iter
+                                df_obj["phase_curve_refresh_date_{}".format(filt)]=self.utc_date_now
+                                df_obj["phase_curve_nfev{}_{}".format(ms,filt)]=nfev
+                                df_obj["phase_curve_ier{}_{}".format(ms,filt)]=ier
+                                df_obj["phase_curve_N_mag_err{}_{}".format(ms,filt)]=N_mag_err
+
+                                for p in range(len(self.phase_curve[i])):
+                                    df_obj["phase_curve_{}{}_{}".format(pc[p],ms,filt)]=params[p]
+                                    df_obj["phase_curve_{}_err{}_{}".format(pc[p],ms,filt)]=param_err_x[p]
+
+                                # print(df_obj["detection_count_{}".format(filt)])
+                                print(df_obj.iloc[0].to_string())
+                                # exit()
+
+                                # self.push_fit_db(params,param_err_x,pc,ms,filt,detection_count_filt,N_data_fit,alpha_min,alpha_max,phase_angle_range,N_alpha_low,N_nights,N_iter,nfev,ier,N_mag_err)
 
                                 # print("push fit to db")
                                 #
@@ -683,6 +773,10 @@ class phase_fit():
                         old_params=params
 
                     k+=1
+
+        # push ALL the data
+        if self.push_fit==True:
+            self.push_obj_db(df_obj)
 
         # close all database connections
         # CLOSE CURSORS TOO?
