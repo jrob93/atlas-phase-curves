@@ -85,7 +85,7 @@ while len(mpc_number_list)>0:
     mpc_number_list=mpc_number_list[threads:]
 
     print("run parallel, {} threads".format(threads))
-    print("fit mpc numbers {} - {}".format(sub_list[0],sub_list[1]))
+    print("fit mpc numbers {} - {}".format(sub_list[0],sub_list[-1]))
     pool = Pool(threads)
     multiple_results = [pool.apply_async(phase_fit_func, args=(n,)) for n in sub_list]
     pool.close()
