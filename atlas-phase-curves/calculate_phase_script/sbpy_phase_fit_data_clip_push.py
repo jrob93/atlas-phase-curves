@@ -264,7 +264,8 @@ for filt in filters:
         k=0
         while k<max_iters:
 
-            print("iteration: {}".format(k))
+            # print("iteration: {}".format(k))
+            print("iteration: {}, N_data={}".format(k,len(data)))
 
             # extract asteroid phase data from data
             alpha = np.array(data['phase_angle']) * u.deg
@@ -298,7 +299,11 @@ for filt in filters:
                     print("less data to fit than parameters")
                     break
 
-                model = fitter(model_name, alpha, mag, weights=1.0/np.array(mag_err)) # add weights/uncertainties here?
+                if k==1:
+                    model = fitter(model_name, alpha, mag) # drop the weights for the first fit
+                else:
+                    model = fitter(model_name, alpha, mag, weights=1.0/np.array(mag_err)) # add weights/uncertainties here?
+
                 model_str=model_names_str[i]
 
                 # !!! RECORD ANY WARNINGS ETC? see fitter.fit_info
