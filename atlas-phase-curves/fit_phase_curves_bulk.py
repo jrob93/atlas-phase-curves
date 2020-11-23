@@ -9,11 +9,23 @@ from multiprocessing import Pool
 import subprocess
 import os
 import cProfile
+import sys
+from contextlib import redirect_stdout
 
 def phase_fit_func(mpc_number):
-    fit = sbpy_phase_fit.phase_fit(mpc_number,push_fit_flag=True)
-    fit.calculate()
-    return
+    # f = io.StringIO()
+    # with redirect_stdout(f):
+    #     fit = sbpy_phase_fit.phase_fit(mpc_number,push_fit_flag=True,hide_warning_flag=True)
+    #     fit.calculate()
+    # # del f
+
+    # sys.stdout = open(str(os.getpid()) + ".out", "w")
+    with open("tmp", "w") as f:
+        sys.stdout = f
+        fit = sbpy_phase_fit.phase_fit(mpc_number,push_fit_flag=True,hide_warning_flag=True)
+        check=fit.calculate()
+
+    return check
 
 # connect to the database
 from calculate_phase import atlas_database_connection
@@ -31,7 +43,7 @@ mpc_number_list=df['mpc_number'].astype(int)
 print(mpc_number_list)
 print(len(mpc_number_list))
 
-mpc_number_list=mpc_number_list[:1]
+mpc_number_list=mpc_number_list[:100]
 
 mpc_number_list=list(mpc_number_list)
 print(mpc_number_list)
@@ -81,9 +93,17 @@ while len(mpc_number_list)>0:
     print()
     jobs_done+=len(sub_list)
     t_elapsed=t_end-t_start
+
+    # # try check if the fit worked
+    # for i,r in enumerate(multiple_results):
+    #     try:
+    #         print(r.get())
+    #     except:
+    #         print("error {}".format(sub_list[i]))
+
     print("N jobs done = {}".format(jobs_done))
     print("time elapsed = {}".format(t_elapsed))
-    print("{} objects/second".format(float(jobs_done)/t_elapsed))
+    print("{} objects/second".format(float(len(sub_list))/t_elapsed))
 
     print()
 
