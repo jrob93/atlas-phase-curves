@@ -348,8 +348,11 @@ class phase_fit():
 
         col_vals_update=""
         for i in range(len(cols)):
-            # print(cols[i],vals[i])
+            print(cols[i],vals[i])
             # get rid of if statement
+            # if np.isnan(vals[i]):
+            if vals[i].lower()=="nan": # mysql doesn't understand nan, needs NULL
+                vals[i]="NULL"
             if cols[i] in ["name","phase_curve_refresh_date_o","phase_curve_refresh_date_c"]:
                 col_vals_update+="{}=\"{}\",".format(cols[i],vals[i])
                 vals[i]="\"{}\"".format(vals[i])
@@ -363,7 +366,7 @@ class phase_fit():
         # UPDATE TO BE UPDATE/INSERT!
         qry=u"""INSERT INTO {} ({}) values ({}) ON DUPLICATE KEY UPDATE {};""".format(self.tab_name,",".join(cols), ",".join(vals), col_vals_update)
 
-        qry=qry.replace('=nan', '=NULL') # mysql doesn't understand nan, needs NULL
+        # qry=qry.replace('=nan', '=NULL') # mysql doesn't understand nan, needs NULL
 
         print(qry)
         # exit()
