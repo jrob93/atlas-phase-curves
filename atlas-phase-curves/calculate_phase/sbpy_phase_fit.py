@@ -5,6 +5,7 @@ import astropy.units as u
 # from astropy import units as u
 from astropy.modeling.fitting import LevMarLSQFitter
 from sbpy.photometry import HG, HG1G2, HG12, HG12_Pen16
+from sbpy.photometry import LinearPhaseFunc
 import pandas as pd
 import os
 import mysql.connector
@@ -56,6 +57,10 @@ class phase_fit():
     model_short = ["_B89","_3M10","_2M10","_P16"] # use shorthand for all models
     phase_curve = [["H","G"],["H","G1","G2"],["H","G12"],["H","G12"]]
     model_names = [HG(), HG1G2(), HG12(), HG12_Pen16()]
+    # model_names_str = ["LinearPhaseFunc"]
+    # model_short = ["_Lin"] # use shorthand for all models
+    # phase_curve = [["H","S"]]
+    # model_names = [LinearPhaseFunc(H=5,S=0.04)]
 
     # load the columns used to make the db table (might need to update the path)
     # fname_path = Path(__file__).parent / "../create_table/atlas_objects_fields.txt"
@@ -520,9 +525,9 @@ class phase_fit():
             # print("G_slope = {}\nH_abs_mag = {}".format(G_slope,H_abs_mag))
 
             # do filter correction from V band (Heinze et al. 2020)
-            if filter=="o":
+            if filt=="o":
                 H_abs_mag+=-0.332
-            if filter=="c":
+            if filt=="c":
                 H_abs_mag+=0.054
 
             # select all data from a certain filter
@@ -796,13 +801,15 @@ class phase_fit():
         self.cnx1.disconnect()
         self.cnx2.disconnect()
 
+        # return df_obj # return the fit df!
+
         return 1
 
 if __name__ == "__main__":
-    # mpc_number=4985
-    mpc_number=2
-    # fit = phase_fit(mpc_number,push_fit_flag=True,plot_fig_flag=True,save_fig_flag=True)
-    fit = phase_fit(mpc_number,push_fit_flag=True)#,plot_fig_flag=True,save_fig_flag=True)
+    mpc_number=4985
+    # mpc_number=2
+    fit = phase_fit(mpc_number,push_fit_flag=False,plot_fig_flag=True,save_fig_flag=True,show_fig_flag=True)
+    # fit = phase_fit(mpc_number,push_fit_flag=True)#,plot_fig_flag=True,save_fig_flag=True)
     # print(fit.mpc_number)
     # print(fit.low_alpha_cut)
     # print(fit.__dict__)
