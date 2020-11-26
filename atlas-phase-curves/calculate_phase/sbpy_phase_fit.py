@@ -53,14 +53,27 @@ class phase_fit():
 
     # set up the sbpy fitter and models
     fitter = LevMarLSQFitter()
-    model_names_str = ["HG", "HG1G2", "HG12", "HG12_Pen16"]
-    model_short = ["_B89","_3M10","_2M10","_P16"] # use shorthand for all models
-    phase_curve = [["H","G"],["H","G1","G2"],["H","G12"],["H","G12"]]
-    model_names = [HG(), HG1G2(), HG12(), HG12_Pen16()]
-    # model_names_str = ["LinearPhaseFunc"]
-    # model_short = ["_Lin"] # use shorthand for all models
-    # phase_curve = [["H","S"]]
-    # model_names = [LinearPhaseFunc(H=5,S=0.04)]
+
+    # # use only the phase functions
+    # model_names_str = ["HG", "HG1G2", "HG12", "HG12_Pen16"]
+    # model_short = ["_B89","_3M10","_2M10","_P16"] # use shorthand for all models
+    # phase_curve = [["H","G"],["H","G1","G2"],["H","G12"],["H","G12"]]
+    # model_names = [HG(), HG1G2(), HG12(), HG12_Pen16()]
+
+    # only linear fit
+    model_names_str = ["LinearPhaseFunc"]
+    model_short = ["_Lin"] # use shorthand for all models
+    phase_curve = [["H","S"]]
+    model_names = [LinearPhaseFunc(H=15,S=0.04)]
+
+    # # do phase functions and linear fit
+    # model_names_str = ["HG", "HG1G2", "HG12", "HG12_Pen16","LinearPhaseFunc"]
+    # model_short = ["_B89","_3M10","_2M10","_P16","_Lin"] # use shorthand for all models
+    # phase_curve = [["H","G"],["H","G1","G2"],["H","G12"],["H","G12"],["H","S"]]
+    # model_names = [HG(), HG1G2(), HG12(), HG12_Pen16(),LinearPhaseFunc(H=15,S=0.04)] # NB that the sbpy LinearPhaseFunc class requires initial values, we use the ~mean H_B89_o and a sensible S, the other classes have built in default values
+
+    phase_lin_min=5 # minimum phase angle for linear fit
+    phase_lin_max=25 # maximum phase angle for linear fit
 
     # load the columns used to make the db table (might need to update the path)
     # fname_path = Path(__file__).parent / "../create_table/atlas_objects_fields.txt"
@@ -331,13 +344,17 @@ class phase_fit():
 
         qry=qry.replace('=nan', '=NULL') # mysql doesn't understand nan, needs NULL
 
-        print(qry)
+        # print(qry)
         # exit()
 
         self.cursor2.execute(qry)
         self.cnx2.commit()
 
     def push_obj_db(self,df_obj):
+        """ This function will take the dataframe from the fit and only push the columns in self.db_columns
+        These are the columns in the db, other columns will break the sql query.
+        G_slope, H_abs_mag and the linear phase fits will not be pushed
+        """
 
         # how to pass large numbers of parameters? Define a dataframe in the class?
         print("push fit to db")
@@ -350,16 +367,16 @@ class phase_fit():
         vals=df_obj[cols].iloc[0]
         vals=np.array(vals).astype(str)
 
-        print(cols)
-        print(list(df_obj))
-        print(vals)
-        print(len(cols),len(vals))
-        print(len(list(df_obj)))
+        # print(cols)
+        # print(list(df_obj))
+        # print(vals)
+        # print(len(cols),len(vals))
+        # print(len(list(df_obj)))
 
         col_vals_update=""
         for i in range(len(cols)):
-            print(cols[i],vals[i])
-            # get rid of if statement
+            # print(cols[i],vals[i])
+            # get rid of if statement if possible? better coding? list comprehension?
             # if np.isnan(vals[i]):
             if vals[i].lower()=="nan": # mysql doesn't understand nan, needs NULL
                 vals[i]="NULL"
@@ -379,11 +396,13 @@ class phase_fit():
 
         # qry=qry.replace('=nan', '=NULL') # mysql doesn't understand nan, needs NULL
 
-        print(qry)
+        # print(qry)
         # exit()
 
         self.cursor2.execute(qry)
         self.cnx2.commit()
+
+        return
 
     def plot_phase_fit(self,model,model_str,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
     data_filt,data_zero_err,data_small_err,data_gal):
@@ -475,7 +494,7 @@ class phase_fit():
         data_all_filt=self.get_obj_data(self.cnx1,self.mpc_number,self.start_date,self.end_date)
         # print(data_all_filt)
 
-        # get the object metadata
+        # get the object metadata and combine with the phase fit dataframe structure
         # df_obj=self.get_obj_metadata(self.cnx1,self.mpc_number)
         df_obj=self.get_obj_meta(self.cnx1,self.mpc_number)
         # print(df_obj)
@@ -533,7 +552,9 @@ class phase_fit():
             # select all data from a certain filter
             data_filt=data_all_filt[data_all_filt['filter']==filt]
             # print(data_filt)
-            detection_count_filt=len(data_filt) # !!! SHOULD WE RECORD NUMBER OF DETECTIONS BEFORE/AFTER CUTS?
+            detection_count_filt=len(data_filt) # Record number of detections BEFORE cuts are made
+            df_obj["detection_count_{}".format(filt)]=detection_count_filt # update the number of detections in the df
+
             # print(detection_count_filt)
             # continue
 
@@ -570,6 +591,10 @@ class phase_fit():
                 # drop measurements near galactic plane
                 data_gal=data[np.absolute(data["galactic_latitude"])<self.gal_lat_cut]
                 data=data[~(np.absolute(data["galactic_latitude"])<self.gal_lat_cut)]
+
+                # phase angle cut for linear fit
+                if self.model_names_str[i]=="LinearPhaseFunc":
+                    data=data[(data["phase_angle"]>self.phase_lin_min) & (data["phase_angle"]<self.phase_lin_max)]
 
                 if len(data)==0:
                     print("no data, cannot fit")
@@ -697,72 +722,76 @@ class phase_fit():
                             # print(self.fitter.fit_info)
                             print(self.fitter.fit_info['message'])
 
-                            if self.push_fit==True:
+                            # if self.push_fit==True:
+                            # STORE FIT DAT IN DF
 
-                                print(df_obj["detection_count_{}".format(filt)])
+                            # DO SOMETHING HERE TO EXTRACT THE LINEAR PHASE FIT?
+                            if self.model_names_str[i]=="LinearPhaseFunc":
+                                print("record linear fit data")
 
-                                # populate the df_obj dataframe
-                                # add fit to df_obj
-                                df_obj["detection_count_{}".format(filt)]=detection_count_filt
-                                # %(HG_params_str)s
-                                df_obj["phase_curve_N_fit{}_{}".format(ms,filt)]=N_data_fit
-                                df_obj["phase_curve_alpha_min{}_{}".format(ms,filt)]=alpha_min
-                                df_obj["phase_curve_alpha_max{}_{}".format(ms,filt)]=alpha_max
-                                df_obj["phase_angle_range_{}".format(filt)]=phase_angle_range
-                                df_obj["phase_curve_N_alpha_low{}_{}".format(ms,filt)]=N_alpha_low
-                                df_obj["phase_curve_N_nights{}_{}".format(ms,filt)]=N_nights
-                                df_obj["phase_curve_N_iter{}_{}".format(ms,filt)]=N_iter
-                                df_obj["phase_curve_refresh_date_{}".format(filt)]=self.utc_date_now
-                                df_obj["phase_curve_nfev{}_{}".format(ms,filt)]=nfev
-                                df_obj["phase_curve_ier{}_{}".format(ms,filt)]=ier
-                                df_obj["phase_curve_N_mag_err{}_{}".format(ms,filt)]=N_mag_err
+                            print(df_obj["detection_count_{}".format(filt)])
 
-                                for p in range(len(self.phase_curve[i])):
-                                    df_obj["phase_curve_{}{}_{}".format(pc[p],ms,filt)]=params[p]
-                                    df_obj["phase_curve_{}_err{}_{}".format(pc[p],ms,filt)]=param_err_x[p]
+                            # populate the df_obj dataframe
+                            # add fit to df_obj
+                            # %(HG_params_str)s
+                            df_obj["phase_curve_N_fit{}_{}".format(ms,filt)]=N_data_fit
+                            df_obj["phase_curve_alpha_min{}_{}".format(ms,filt)]=alpha_min
+                            df_obj["phase_curve_alpha_max{}_{}".format(ms,filt)]=alpha_max
+                            df_obj["phase_angle_range_{}".format(filt)]=phase_angle_range
+                            df_obj["phase_curve_N_alpha_low{}_{}".format(ms,filt)]=N_alpha_low
+                            df_obj["phase_curve_N_nights{}_{}".format(ms,filt)]=N_nights
+                            df_obj["phase_curve_N_iter{}_{}".format(ms,filt)]=N_iter
+                            df_obj["phase_curve_refresh_date_{}".format(filt)]=self.utc_date_now
+                            df_obj["phase_curve_nfev{}_{}".format(ms,filt)]=nfev
+                            df_obj["phase_curve_ier{}_{}".format(ms,filt)]=ier
+                            df_obj["phase_curve_N_mag_err{}_{}".format(ms,filt)]=N_mag_err
 
-                                # print(df_obj["detection_count_{}".format(filt)])
-                                print(df_obj.iloc[0].to_string())
-                                # exit()
+                            for p in range(len(self.phase_curve[i])):
+                                df_obj["phase_curve_{}{}_{}".format(pc[p],ms,filt)]=params[p]
+                                df_obj["phase_curve_{}_err{}_{}".format(pc[p],ms,filt)]=param_err_x[p]
 
-                                # self.push_fit_db(params,param_err_x,pc,ms,filt,detection_count_filt,N_data_fit,alpha_min,alpha_max,phase_angle_range,N_alpha_low,N_nights,N_iter,nfev,ier,N_mag_err)
+                            # print(df_obj["detection_count_{}".format(filt)])
+                            # print(df_obj.iloc[0].to_string())
+                            # exit()
 
-                                # print("push fit to db")
-                                #
-                                # HG_params_str=""
-                                # for p in range(len(self.phase_curve[i])):
-                                #     HG_params_str+="phase_curve_{}%(ms)s_%(filt)s={},phase_curve_{}_err%(ms)s_%(filt)s={},".format(
-                                #     self.phase_curve[i][p],params[p],
-                                #     self.phase_curve[i][p],param_err_x[p]
-                                #     ) % locals()
-                                #
-                                # tab_name=self.tab_name
-                                # utc_date_now=self.utc_date_now
-                                # mpc_number=self.mpc_number
-                                #
-                                # qry = u"""UPDATE %(tab_name)s SET
-                                # detection_count_%(filt)s=%(detection_count_filt)s,
-                                # %(HG_params_str)s
-                                # phase_curve_N_fit%(ms)s_%(filt)s=%(N_data_fit)s,
-                                # phase_curve_alpha_min%(ms)s_%(filt)s=%(alpha_min)s,
-                                # phase_curve_alpha_max%(ms)s_%(filt)s=%(alpha_max)s,
-                                # phase_angle_range_%(filt)s=%(phase_angle_range)s,
-                                # phase_curve_N_alpha_low%(ms)s_%(filt)s=%(N_alpha_low)s,
-                                # phase_curve_N_nights%(ms)s_%(filt)s=%(N_nights)s,
-                                # phase_curve_N_iter%(ms)s_%(filt)s=%(N_iter)s,
-                                # phase_curve_refresh_date_%(filt)s='%(utc_date_now)s',
-                                # phase_curve_nfev%(ms)s_%(filt)s=%(nfev)s,
-                                # phase_curve_ier%(ms)s_%(filt)s=%(ier)s,
-                                # phase_curve_N_mag_err%(ms)s_%(filt)s=%(N_mag_err)s
-                                # WHERE mpc_number=%(mpc_number)s;""" % locals()
-                                #
-                                # qry=qry.replace('=nan', '=NULL') # mysql doesn't understand nan, needs NULL
-                                #
-                                # print(qry)
-                                # # exit()
-                                #
-                                # cursor2.execute(qry)
-                                # cnx2.commit()
+                            # self.push_fit_db(params,param_err_x,pc,ms,filt,detection_count_filt,N_data_fit,alpha_min,alpha_max,phase_angle_range,N_alpha_low,N_nights,N_iter,nfev,ier,N_mag_err)
+
+                            # print("push fit to db")
+                            #
+                            # HG_params_str=""
+                            # for p in range(len(self.phase_curve[i])):
+                            #     HG_params_str+="phase_curve_{}%(ms)s_%(filt)s={},phase_curve_{}_err%(ms)s_%(filt)s={},".format(
+                            #     self.phase_curve[i][p],params[p],
+                            #     self.phase_curve[i][p],param_err_x[p]
+                            #     ) % locals()
+                            #
+                            # tab_name=self.tab_name
+                            # utc_date_now=self.utc_date_now
+                            # mpc_number=self.mpc_number
+                            #
+                            # qry = u"""UPDATE %(tab_name)s SET
+                            # detection_count_%(filt)s=%(detection_count_filt)s,
+                            # %(HG_params_str)s
+                            # phase_curve_N_fit%(ms)s_%(filt)s=%(N_data_fit)s,
+                            # phase_curve_alpha_min%(ms)s_%(filt)s=%(alpha_min)s,
+                            # phase_curve_alpha_max%(ms)s_%(filt)s=%(alpha_max)s,
+                            # phase_angle_range_%(filt)s=%(phase_angle_range)s,
+                            # phase_curve_N_alpha_low%(ms)s_%(filt)s=%(N_alpha_low)s,
+                            # phase_curve_N_nights%(ms)s_%(filt)s=%(N_nights)s,
+                            # phase_curve_N_iter%(ms)s_%(filt)s=%(N_iter)s,
+                            # phase_curve_refresh_date_%(filt)s='%(utc_date_now)s',
+                            # phase_curve_nfev%(ms)s_%(filt)s=%(nfev)s,
+                            # phase_curve_ier%(ms)s_%(filt)s=%(ier)s,
+                            # phase_curve_N_mag_err%(ms)s_%(filt)s=%(N_mag_err)s
+                            # WHERE mpc_number=%(mpc_number)s;""" % locals()
+                            #
+                            # qry=qry.replace('=nan', '=NULL') # mysql doesn't understand nan, needs NULL
+                            #
+                            # print(qry)
+                            # # exit()
+                            #
+                            # cursor2.execute(qry)
+                            # cnx2.commit()
 
                             if self.plot_fig:
 
@@ -794,6 +823,11 @@ class phase_fit():
 
         # push ALL the data
         if self.push_fit==True:
+
+            # # DO SOMETHING HERE TO STORE THE LINEAR PHASE FIT
+            # if self.model_names_str[i]=="LinearPhaseFunc":
+            #     print("store/push linear fit data")
+
             self.push_obj_db(df_obj)
 
         # close all database connections
@@ -801,14 +835,13 @@ class phase_fit():
         self.cnx1.disconnect()
         self.cnx2.disconnect()
 
-        # return df_obj # return the fit df!
-
-        return 1
+        return df_obj # return the fit df!
+        # return 1
 
 if __name__ == "__main__":
     mpc_number=4985
     # mpc_number=2
-    fit = phase_fit(mpc_number,push_fit_flag=False,plot_fig_flag=True,save_fig_flag=True,show_fig_flag=True)
+    fit = phase_fit(mpc_number,push_fit_flag=True,plot_fig_flag=True,save_fig_flag=True)#,show_fig_flag=True)
     # fit = phase_fit(mpc_number,push_fit_flag=True)#,plot_fig_flag=True,save_fig_flag=True)
     # print(fit.mpc_number)
     # print(fit.low_alpha_cut)
@@ -822,8 +855,8 @@ if __name__ == "__main__":
     # print(fit.cnx1)
     # print(fit.tab_name)
 
-    fit.calculate()
-
+    df=fit.calculate()
+    print(df.iloc[0].to_string())
     exit()
 
 """parser = OptionParser()
