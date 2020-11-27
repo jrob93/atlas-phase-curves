@@ -54,17 +54,17 @@ class phase_fit():
     # set up the sbpy fitter and models
     fitter = LevMarLSQFitter()
 
-    # # use only the phase functions
-    # model_names_str = ["HG", "HG1G2", "HG12", "HG12_Pen16"]
-    # model_short = ["_B89","_3M10","_2M10","_P16"] # use shorthand for all models
-    # phase_curve = [["H","G"],["H","G1","G2"],["H","G12"],["H","G12"]]
-    # model_names = [HG(), HG1G2(), HG12(), HG12_Pen16()]
+    # use only the phase functions
+    model_names_str = ["HG", "HG1G2", "HG12", "HG12_Pen16"]
+    model_short = ["_B89","_3M10","_2M10","_P16"] # use shorthand for all models
+    phase_curve = [["H","G"],["H","G1","G2"],["H","G12"],["H","G12"]]
+    model_names = [HG(), HG1G2(), HG12(), HG12_Pen16()]
 
-    # only linear fit
-    model_names_str = ["LinearPhaseFunc"]
-    model_short = ["_Lin"] # use shorthand for all models
-    phase_curve = [["H","S"]]
-    model_names = [LinearPhaseFunc(H=15,S=0.04)]
+    # # only linear fit
+    # model_names_str = ["LinearPhaseFunc"]
+    # model_short = ["_Lin"] # use shorthand for all models
+    # phase_curve = [["H","S"]]
+    # model_names = [LinearPhaseFunc(H=15,S=0.04)]
 
     # # do phase functions and linear fit
     # model_names_str = ["HG", "HG1G2", "HG12", "HG12_Pen16","LinearPhaseFunc"]
@@ -543,11 +543,11 @@ class phase_fit():
             H_abs_mag=float(df_obj.iloc[0]['H_abs_mag'])
             # print("G_slope = {}\nH_abs_mag = {}".format(G_slope,H_abs_mag))
 
-            # do filter correction from V band (Heinze et al. 2020)
-            if filt=="o":
-                H_abs_mag+=-0.332
-            if filt=="c":
-                H_abs_mag+=0.054
+            # # do filter correction from V band (Heinze et al. 2020)
+            # if filt=="o":
+            #     H_abs_mag+=-0.332
+            # if filt=="c":
+            #     H_abs_mag+=0.054
 
             # select all data from a certain filter
             data_filt=data_all_filt[data_all_filt['filter']==filt]
@@ -839,9 +839,12 @@ class phase_fit():
         # return 1
 
 if __name__ == "__main__":
-    mpc_number=4985
+    # mpc_number=4985
     # mpc_number=2
-    fit = phase_fit(mpc_number,push_fit_flag=True,plot_fig_flag=True,save_fig_flag=True)#,show_fig_flag=True)
+    # mpc_number=65394
+    # mpc_number=204709
+    mpc_number=91542
+    fit = phase_fit(mpc_number,push_fit_flag=False,plot_fig_flag=True,save_fig_flag=True,save_path="figs")#,show_fig_flag=True)
     # fit = phase_fit(mpc_number,push_fit_flag=True)#,plot_fig_flag=True,save_fig_flag=True)
     # print(fit.mpc_number)
     # print(fit.low_alpha_cut)
