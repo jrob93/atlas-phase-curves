@@ -11,8 +11,9 @@ Add option for object number or name
 This function version returns the dataframe
 """
 
-# import mysql.connector
-# import pandas as pd
+# compare Alan and Dave's queries, e.g. Dave uses orbital_elements_id to select data, is this faster?
+# write function to accept name or mpc number
+
 from pandas import read_sql_query
 
 def atlas_SQL_query(cnx,mpc_number=4986,filter="all"):
@@ -58,22 +59,19 @@ def atlas_SQL_query(cnx,mpc_number=4986,filter="all"):
 
     return df
 
-if __name__ == "__main__":
-
-    # # connect to the database
-    # config = {
-    #   'user': 'af',
-    #   'password': 'afPass',
-    #   'host': 'localhost',
-    #   'port': '3308',
-    #   'database': 'atlas_moving_objects',
-    #   'raise_on_warnings': True
-    # }
-    # cnx = mysql.connector.connect(**config)
-
-    from atlas_database_connection import database_connection
-    cnx=database_connection().connect()
-    print(cnx)
-    print(atlas_SQL_query(mpc_number=4985,cnx=cnx))
-    print("atlas_SQL_query_df!!!!")
-    exit()
+# if __name__ == "__main__":
+#
+#     import pandas as pd
+#     from atlas_database_connection import database_connection
+#     cnx=database_connection().connect()
+#     print(cnx)
+#     # mpc=4985
+#     # mpc=121514
+#     mpc=136199
+#     df_data=atlas_SQL_query(mpc_number=mpc,cnx=cnx)
+#     print(df_data)
+#     print(list(df_data))
+#     df_data.to_csv("df_data_{}.csv".format(mpc))
+#     print(pd.read_csv("df_data_{}.csv".format(mpc),index_col=0))
+#     # print("atlas_SQL_query_df!!!!")
+#     exit()

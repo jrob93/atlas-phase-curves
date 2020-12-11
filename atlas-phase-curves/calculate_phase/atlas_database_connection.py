@@ -1,3 +1,5 @@
+""" Module to set up database connection """
+
 import mysql.connector
 
 class database_connection():
@@ -19,7 +21,7 @@ class database_connection():
     def disconnect(self):
         self.cnx.close()
 
-if __name__ == "__main__":
-    cnx=database_connection().connect()
-    print(cnx)
-    cnx.disconnect()
+# if __name__ == "__main__":
+#     cnx=database_connection().connect()
+#     print(cnx)
+#     cnx.disconnect()
