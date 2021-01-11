@@ -19,7 +19,7 @@ from pathlib import Path
 #     from calculate_phase.atlas_SQL_query_df import atlas_SQL_query
 #     from calculate_phase.atlas_database_connection import database_connection
 
-from calculate_phase.atlas_SQL_query_df import atlas_SQL_query
+from calculate_phase.atlas_SQL_query_df import atlas_SQL_query,get_orb_elements_id,get_unique_ids,atlas_SQL_query_orbid
 from calculate_phase.atlas_database_connection import database_connection
 
 class phase_fit():
@@ -84,7 +84,8 @@ class phase_fit():
     print(db_columns)
 
     def __init__(self,
-        mpc_number,
+        mpc_number=False,
+        name=False,
         save_path=".",
         push_fit_flag=False,plot_fig_flag=False,show_fig_flag=False,save_fig_flag=False,hide_warning_flag=False,
         start_date=False,end_date=False,
@@ -93,7 +94,10 @@ class phase_fit():
         # set up the class
         # define object and some flags
 
+        # the object will have EITHER both mpc number and name OR just a name
         self.mpc_number=mpc_number
+        self.name=name
+
         self.push_fit=push_fit_flag # flag to push fit to database
         self.plot_fig=plot_fig_flag # flag to generate plot for each object
         self.show_fig=show_fig_flag # flag to display interactive plot
@@ -121,15 +125,25 @@ class phase_fit():
         self.df_obj_datafit=pd.DataFrame(data=[],columns=self.db_columns) # create an empty series to store all values for the object: metadata and fit data
         print(self.df_obj_datafit)
 
+        # all objects in the db have a unique orbital_elements_id - retrieve this from db using the mpc_number or name
+        self.orbital_elements_id=get_orb_elements_id(self.cnx1,self.mpc_number,self.name)
+
+        # get both primaryId and orbital_elements_id
+        # unique_ids=get_unique_ids(self.cnx1,self.mpc_number,self.name)
+        # self.primaryId=unique_ids["primaryId"]
+        # self.orbital_elements_id=unique_ids["orbital_elements_id"]
+
         if hide_warning_flag==1:
             import warnings
             print("hide warnings")
             warnings.filterwarnings('ignore')
 
 
-    def get_obj_data(self,cnx,mpc_num,t_start=False,t_end=False):
+    # def get_obj_data(self,cnx,mpc_num,t_start=False,t_end=False):
+    def get_obj_data(self,cnx,orbid,t_start=False,t_end=False):
         # load data to be fitted, loads both filters (o & c)
-        data_all_filt=atlas_SQL_query(cnx=cnx,mpc_number=mpc_num)
+        # data_all_filt=atlas_SQL_query(cnx=cnx,mpc_number=mpc_num)
+        data_all_filt=atlas_SQL_query_orbid(cnx,orbid)
 
         # cut by date range. Note that different filters may have different dates/epochs!
         if t_start:
@@ -141,9 +155,25 @@ class phase_fit():
 
         return data_all_filt
 
-    def get_obj_metadata(self,cnx,mpc_num):
+    # def get_obj_metadata(self,cnx,mpc_num):
+    def get_obj_metadata(self,cnx,orbid):
 
         # get the last bits of data. might be out of date if rockatlas isn't running...?
+        # qry_obj1=u"""SELECT
+        # dateLastModified,
+        # detection_count,
+        # detection_count_c,
+        # detection_count_o,
+        # last_detection_mjd,
+        # last_photometry_update_date_c,
+        # last_photometry_update_date_o,
+        # mpc_number,
+        # name,
+        # orbital_elements_id,
+        # primaryId,
+        # updated
+        # FROM atlas_objects WHERE mpc_number=%(mpc_num)s
+        # """ % locals()
         qry_obj1=u"""SELECT
         dateLastModified,
         detection_count,
@@ -157,7 +187,7 @@ class phase_fit():
         orbital_elements_id,
         primaryId,
         updated
-        FROM atlas_objects WHERE mpc_number=%(mpc_num)s
+        FROM atlas_objects WHERE orbital_elements_id=%(orbid)s
         """ % locals()
         # print(qry_obj1)
 
@@ -177,38 +207,99 @@ class phase_fit():
         # print(df_obj[['detection_count',  'detection_count_c',  'detection_count_o']])
         return df_obj
 
-    def get_obj_HG(self,cnx,mpc_num):
+    # def get_obj_HG(self,cnx,mpc_num):
+    def get_obj_HG(self,cnx,orbid):
         # get the astorb H and G (B89)
         # qry_HG="select G_slope, H_abs_mag from orbital_elements where primaryId='{}';".format(self.mpc_number)
-        qry_HG="select G_slope, H_abs_mag from orbital_elements where mpc_number='{}';".format(mpc_num)
+        # qry_HG="SELECT G_slope, H_abs_mag FROM orbital_elements WHERE mpc_number='{}';".format(mpc_num)
+        qry_HG="SELECT G_slope, H_abs_mag FROM orbital_elements WHERE orbital_elements_id='{}';".format(orbid)
         # print(qry_HG)
         df_HG=pd.read_sql_query(qry_HG,cnx)
         return df_HG
 
-    def get_obj_meta(self,cnx,mpc_num):
+    # def get_obj_meta(self,cnx,mpc_num):
+    def get_obj_meta(self,cnx,orbid,mpc_num,name):
 
         # get the last bits of data. might be out of date if rockatlas isn't running...?
-        qry_obj1=u"""SELECT
-        a.dateLastModified,
-        a.detection_count,
-        a.detection_count_c,
-        a.detection_count_o,
-        a.last_detection_mjd,
-        a.last_photometry_update_date_c,
-        a.last_photometry_update_date_o,
-        a.mpc_number,
-        a.name,
-        a.orbital_elements_id,
-        a.primaryId,
-        a.updated,
-        o.G_slope,
-        o.H_abs_mag
-        FROM atlas_objects a, orbital_elements o WHERE a.mpc_number=%(mpc_num)s AND o.mpc_number=%(mpc_num)s
-        """ % locals()
-        # print(qry_obj1)
+        # qry_obj1=u"""SELECT
+        # a.dateLastModified,
+        # a.detection_count,
+        # a.detection_count_c,
+        # a.detection_count_o,
+        # a.last_detection_mjd,
+        # a.last_photometry_update_date_c,
+        # a.last_photometry_update_date_o,
+        # a.mpc_number,
+        # a.name,
+        # a.orbital_elements_id,
+        # a.primaryId,
+        # a.updated,
+        # o.G_slope,
+        # o.H_abs_mag
+        # FROM atlas_objects a, orbital_elements o WHERE a.mpc_number=%(mpc_num)s AND o.mpc_number=%(mpc_num)s
+        # """ % locals()
+
+        if mpc_num:
+            qry_obj1=u"""SELECT
+            a.dateLastModified,
+            a.detection_count,
+            a.detection_count_c,
+            a.detection_count_o,
+            a.last_detection_mjd,
+            a.last_photometry_update_date_c,
+            a.last_photometry_update_date_o,
+            a.mpc_number,
+            a.name,
+            a.orbital_elements_id,
+            a.primaryId,
+            a.updated,
+            o.G_slope,
+            o.H_abs_mag
+            FROM atlas_objects a, orbital_elements o WHERE a.orbital_elements_id=%(orbid)s AND o.mpc_number=%(mpc_num)s;
+            """ % locals()
+        else:
+            qry_obj1=u"""SELECT
+            a.dateLastModified,
+            a.detection_count,
+            a.detection_count_c,
+            a.detection_count_o,
+            a.last_detection_mjd,
+            a.last_photometry_update_date_c,
+            a.last_photometry_update_date_o,
+            a.mpc_number,
+            a.name,
+            a.orbital_elements_id,
+            a.primaryId,
+            a.updated,
+            o.G_slope,
+            o.H_abs_mag
+            FROM atlas_objects a, orbital_elements o WHERE a.orbital_elements_id=%(orbid)s AND o.name="%(name)s";
+            """ % locals()
+
+        # qry_obj1=u"""SELECT
+        # atlas_objects.dateLastModified,
+        # atlas_objects.detection_count,
+        # atlas_objects.detection_count_c,
+        # atlas_objects.detection_count_o,
+        # atlas_objects.last_detection_mjd,
+        # atlas_objects.last_photometry_update_date_c,
+        # atlas_objects.last_photometry_update_date_o,
+        # atlas_objects.mpc_number,
+        # atlas_objects.name,
+        # atlas_objects.orbital_elements_id,
+        # atlas_objects.primaryId,
+        # atlas_objects.updated,
+        # orbital_elements.G_slope,
+        # orbital_elements.H_abs_mag
+        # FROM atlas_objects
+        # INNER JOIN orbital_elements ON atlas_objects.primaryId=orbital_elements.primaryId
+        # WHERE atlas_objects.orbital_elements_id=%(orbid)s;
+        # """ % locals()
+
+        print(qry_obj1)
 
         df_obj=pd.read_sql_query(qry_obj1,cnx)
-        # print(df_obj)
+        print(df_obj[["primaryId","orbital_elements_id","mpc_number","name"]])
         # print(list(df_obj))
 
         # fix the date strings
@@ -222,7 +313,8 @@ class phase_fit():
         # print(df_obj[['detection_count',  'detection_count_c',  'detection_count_o']])
         return df_obj
 
-    def database_obj_entry(self,mpc_num,df_obj,mpc_check):
+    # def database_obj_entry(self,mpc_num,df_obj,mpc_check):
+    def database_obj_entry(self,orbid,df_obj,mpc_check):
 
         if mpc_check==0:
 
@@ -491,13 +583,15 @@ class phase_fit():
         # calculate the phase curves
 
         # get the object observation data
-        data_all_filt=self.get_obj_data(self.cnx1,self.mpc_number,self.start_date,self.end_date)
+        # data_all_filt=self.get_obj_data(self.cnx1,self.mpc_number,self.start_date,self.end_date)
+        data_all_filt=self.get_obj_data(self.cnx1,self.orbital_elements_id,self.start_date,self.end_date)
         # print(data_all_filt)
 
         # get the object metadata and combine with the phase fit dataframe structure
         # df_obj=self.get_obj_metadata(self.cnx1,self.mpc_number)
-        df_obj=self.get_obj_meta(self.cnx1,self.mpc_number)
-        # print(df_obj)
+        # df_obj=self.get_obj_meta(self.cnx1,self.mpc_number)
+        df_obj=self.get_obj_meta(self.cnx1,self.orbital_elements_id,self.mpc_number,self.name)
+        print(df_obj)
         d1=df_obj
         d2=self.df_obj_datafit
         # print(d1)
@@ -505,10 +599,13 @@ class phase_fit():
         df_obj=d2.append(d1) # add the values to the df
         # print(df_obj.iloc[0].to_string)
         # print(df_obj['phase_curve_H_2M10_o'])
-        # exit()
 
         # update the detection_count
         df_obj["detection_count"]=len(data_all_filt) # note that atlas_objects may not have up to date detection count...
+
+        # set the mpc_number and name from df_obj !!!
+        self.mpc_number=df_obj.iloc[0]['mpc_number']
+        self.name=df_obj.iloc[0]['name']
 
         # # get the astorb H and G (B89)
         # # qry_HG="select G_slope, H_abs_mag from orbital_elements where primaryId='{}';".format(self.mpc_number)
@@ -554,6 +651,8 @@ class phase_fit():
             # if H_abs_mag_c is passed use this: # median of phase_curve_H_2M10_c,phase_curve_H_3M10_c,phase_curve_H_B89_c,phase_curve_H_P16_c
             # else use the astorb guess:
 
+            # use the updated field to track how many times this iteration has been done?
+
             # H_abs_mag=14.6833
             # H_vals=np.array([14.5801,np.nan,14.6833,14.4651])
             # H_abs_mag=21.9497
@@ -586,7 +685,8 @@ class phase_fit():
                 mag_cut_iter_list=[]
                 alpha_cut_iter_list=[]
 
-                print("{}: fit {}, filter {}".format(self.mpc_number,self.model_names_str[i],filt))
+                # print("{}, {}: fit {}, filter {}".format(self.mpc_number,self.mpc_number,self.model_names_str[i],filt))
+                print("{}, {}: fit {}, filter {}".format(self.name,self.mpc_number,self.model_names_str[i],filt))
 
                 # initialise the data that we will iteratively fit and cut
                 data=data_filt
@@ -810,6 +910,12 @@ class phase_fit():
                                 data_filt,data_zero_err,data_small_err,data_gal)
 
                             # exit()
+
+                            # # save data that was used to fit to file
+                            # data_clip_file="results_analysis/fit_data/df_data_{}{}_{}.csv".format(self.mpc_number,ms,filt)
+                            # print(data_clip_file)
+                            # data.to_csv(data_clip_file)
+
                             break
 
                     # record stuff for plotting
