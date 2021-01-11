@@ -20,7 +20,8 @@ def get_orb_elements_id(cnx,mpc_number=False,name=False):
     """ Function to retrieve the orbital_elements_id from either mpc_number or name.
      name case should not matter for SQL """
 
-    print(mpc_number,name)
+    print("mpc_number={}".format(mpc_number))
+    print("name={}".format(name))
 
     # use mpc_number or name to get orbital_elements_id
     if name:
@@ -28,16 +29,43 @@ def get_orb_elements_id(cnx,mpc_number=False,name=False):
     else:
         qry="SELECT orbital_elements_id FROM atlas_objects WHERE mpc_number=\"{}\";".format(mpc_number)
 
+    print(qry)
     cursor=cnx.cursor()
     cursor.execute(qry)
     row = cursor.fetchone()
-    orbital_elements_id=row[0]
+    orbital_elements_id=int(row[0])
 
-    print(orbital_elements_id)
+    print("orbital_elements_id={}".format(orbital_elements_id))
 
     return orbital_elements_id
 
-def atlas_SQL_query(cnx,orbital_elements_id,filter="all"):
+def get_unique_ids(cnx,mpc_number=False,name=False):
+    """ Function to retrieve the orbital_elements_id from either mpc_number or name.
+     name case should not matter for SQL """
+
+    print("mpc_number={}".format(mpc_number))
+    print("name={}".format(name))
+
+    # use mpc_number or name to get orbital_elements_id
+    if name:
+        qry="SELECT primaryId,orbital_elements_id FROM atlas_objects WHERE name=\"{}\";".format(name)
+    else:
+        qry="SELECT primaryId,orbital_elements_id FROM atlas_objects WHERE mpc_number=\"{}\";".format(mpc_number)
+
+    print(qry)
+    cursor=cnx.cursor()
+    cursor.execute(qry)
+    row = cursor.fetchone()
+    print(row)
+    primaryId=int(row[0])
+    orbital_elements_id=int(row[1])
+
+    print("primaryId={}".format(primaryId))
+    print("orbital_elements_id={}".format(orbital_elements_id))
+
+    return {"primaryId":primaryId,"orbital_elements_id":orbital_elements_id}
+
+def atlas_SQL_query_orbid(cnx,orbital_elements_id,filter="all"):
     """ Query that accept orb orbital_elements_id """
 
     # # use mpc_number or name to get orbital_elements_id
@@ -181,7 +209,7 @@ def atlas_SQL_query_test(cnx,mpc_number=False,filter="all",name=False):
 
     return df # should also return orbital_elements_id!!!
 
-def atlas_SQL_query_orig(cnx,mpc_number=4986,filter="all"):
+def atlas_SQL_query(cnx,mpc_number=4986,filter="all"):
     """ Original query that searches by mpc number """
 
     if filter=="all":
