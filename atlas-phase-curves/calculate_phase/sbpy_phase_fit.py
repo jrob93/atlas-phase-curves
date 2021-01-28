@@ -10,6 +10,7 @@ import os
 import mysql.connector
 import datetime
 from pathlib import Path
+import logging
 
 # # importing our classes depends on whether this file as a script or module
 # if __name__ == "__main__": # import other modules as a script
@@ -53,11 +54,19 @@ class phase_fit():
     # https://sbpy.readthedocs.io/en/latest/sbpy/photometry.html#disk-integrated-phase-function-models
     fitter = LevMarLSQFitter()
 
+    # add functionality to choose models!!!
+
     # use only the phase functions
     model_names_str = ["HG", "HG1G2", "HG12", "HG12_Pen16"]
     model_short = ["_B89","_3M10","_2M10","_P16"] # use shorthand for all models
     phase_curve = [["H","G"],["H","G1","G2"],["H","G12"],["H","G12"]]
     model_names = [HG(), HG1G2(), HG12(), HG12_Pen16()]
+
+    # # use only the phase functions
+    # model_names_str = ["HG"]
+    # model_short = ["_B89"] # use shorthand for all models
+    # phase_curve = [["H","G"]]
+    # model_names = [HG()]
 
     # # only linear fit
     # model_names_str = ["LinearPhaseFunc"]
@@ -77,11 +86,11 @@ class phase_fit():
     # load the columns used to make the db table (might need to update the path)
     # fname_path = Path(__file__).parent / "../create_table/atlas_objects_fields.txt"
     fname_path = "{}/{}".format(Path(__file__).parent,"../create_table/atlas_objects_fields.txt")
-    print(fname_path)
+    # print(fname_path)
     with open(fname_path,"r") as f:
         db_columns=f.readlines()
     db_columns=[d.rstrip() for d in db_columns]
-    print(db_columns)
+    # print(db_columns)
 
     def __init__(self,
         mpc_number=False,
@@ -105,9 +114,9 @@ class phase_fit():
         self.utc_date_now=datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S") # time at which the script is run (UTC)
         self.save_path=save_path # where to save figures
 
-        self.start_date=start_date
-        self.end_date=end_date
-        # self.date_hard_cap=? # set a fixed date beyond which we do not consider data
+        self.start_date=start_date # only use observations after this date (mjd)
+        self.end_date=end_date # only use observations before this date (mjd)
+        # self.date_hard_cap=? # set a fixed date beyond which we do not consider data - SET BY end_date
         self.filters=filter_list # list of filters to use: ["o"], ["c"], ["o","c"]
 
         # cnx1 is the connection where we retrieve the data from
@@ -138,6 +147,10 @@ class phase_fit():
             print("hide warnings")
             warnings.filterwarnings('ignore')
 
+        # set up a log file - This will append to an existing log file of the same name, delete the file if you need a new log
+        logging.basicConfig(filename='{}.log'.format(os.path.basename(__file__).split('.')[0]), level=logging.INFO)
+        # logging.info('start log file')
+        # logging.warning('{} warning test!'.format(self.orbital_elements_id))
 
     # def get_obj_data(self,cnx,mpc_num,t_start=False,t_end=False):
     def get_obj_data(self,cnx,orbid,t_start=False,t_end=False):
@@ -751,6 +764,7 @@ class phase_fit():
                         model_str=self.model_names_str[i]
 
                         # !!! RECORD ANY WARNINGS ETC? see fitter.fit_info
+                        # logging will record these warnings
 
                         param_names=model.param_names
                         params=model.parameters
@@ -814,7 +828,13 @@ class phase_fit():
                             N_iter=k
                             nfev=self.fitter.fit_info['nfev']
                             ier=self.fitter.fit_info['ierr']
-                            N_mag_err=len(mag_err[np.array(mag_err)<self.mag_err_threshold])
+                            N_mag_err=len(mag_err[np.array(mag_err)<self.mag_err_threshold]) # leq?
+
+                            # if N_mag_err>N_data_fit:
+                            # ERROR
+                            # logging.warning("{} - N_mag_err>N_data_fit".format(self.name))
+
+                            # check for any nans?
 
                             # # time len() vs sum()
                             # import time
