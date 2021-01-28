@@ -136,3 +136,11 @@ for obj_list,phase_fit_func in zip(object_lists,phase_fit_functions):
         of.flush()
 
 of.close()
+
+# add clean up tasks?
+
+cmd="mv sbpy_phase_fit.log sbpy_phase_fit_{}-{}-{}.log".format(today.day,today.month,today.year)
+subprocess.Popen(cmd,shell=True)
+print(cmd)
+
+# download a csv of all the fits
