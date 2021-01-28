@@ -830,9 +830,9 @@ class phase_fit():
                             ier=self.fitter.fit_info['ierr']
                             N_mag_err=len(mag_err[np.array(mag_err)<self.mag_err_threshold]) # leq?
 
-                            # if N_mag_err>N_data_fit:
-                            # ERROR
-                            # logging.warning("{} - N_mag_err>N_data_fit".format(self.name))
+                            if N_mag_err>N_data_fit:
+                                # ERROR
+                                logging.warning("{} - N_mag_err>N_data_fit".format(self.name))
 
                             # check for any nans?
 
