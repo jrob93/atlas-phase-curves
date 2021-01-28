@@ -62,8 +62,8 @@ print(name_list[:10])
 print(len(name_list))
 
 # do all the mpc_number fits, then do all the name fits
-# object_lists=[mpc_number_list,name_list]
-object_lists=[mpc_number_list[:4],name_list[:4]]
+object_lists=[mpc_number_list,name_list]
+#object_lists=[mpc_number_list[:4],name_list[:4]]
 phase_fit_functions=[phase_fit_func_mpc,phase_fit_func_name]
 
 # create a file that records the date, the start and end mpc numbers in a batch, the length of time to complete a batch, the number of jobs in a batch and the number of objects done per sec
