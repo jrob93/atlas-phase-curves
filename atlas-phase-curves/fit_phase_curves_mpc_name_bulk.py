@@ -12,12 +12,13 @@ import cProfile
 import sys
 from contextlib import redirect_stdout
 from calculate_phase import atlas_database_connection
+from astropy.time import Time
 
 # define the fitting functions
-def phase_fit_func_mpc(mpc_number):
+def phase_fit_func_mpc(mpc_number,end_date):
     with open("tmp", "w") as f:
         sys.stdout = f # redirect output to file (or just suppress? https://stackoverflow.com/questions/8447185/to-prevent-a-function-from-printing-in-the-batch-console-in-python)
-        fit = sbpy_phase_fit.phase_fit(mpc_number=mpc_number,push_fit_flag=True,hide_warning_flag=True)
+        fit = sbpy_phase_fit.phase_fit(mpc_number=mpc_number,end_date=end_date,push_fit_flag=True,hide_warning_flag=False)
         check=fit.calculate()
         sys.stdout = sys.__stdout__ # need to reset the redirect!
     # fit = sbpy_phase_fit.phase_fit(mpc_number=mpc_number,push_fit_flag=True,hide_warning_flag=True)
@@ -66,6 +67,11 @@ object_lists=[mpc_number_list,name_list]
 #object_lists=[mpc_number_list[:4],name_list[:4]]
 phase_fit_functions=[phase_fit_func_mpc,phase_fit_func_name]
 
+# set the date beyond which no obs are counted
+end_date=Time(Time.now(),scale='utc').mjd
+print(end_date)
+exit()
+
 # create a file that records the date, the start and end mpc numbers in a batch, the length of time to complete a batch, the number of jobs in a batch and the number of objects done per sec
 today=datetime.datetime.now()
 fname="fit_phase_curves_bulk_record_{}-{}-{}.csv".format(today.day,today.month,today.year)
@@ -111,7 +117,7 @@ for obj_list,phase_fit_func in zip(object_lists,phase_fit_functions):
         print("run parallel, {} threads".format(threads))
         print("fit objects {} - {}".format(sub_list[0],sub_list[-1]))
         pool = Pool(threads)
-        multiple_results = [pool.apply_async(phase_fit_func, args=(n,)) for n in sub_list]
+        multiple_results = [pool.apply_async(phase_fit_func, args=(n,end_date,)) for n in sub_list]
         pool.close()
         pool.join()
         t_end=time.time()
