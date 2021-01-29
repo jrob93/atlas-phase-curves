@@ -11,6 +11,9 @@ import mysql.connector
 import datetime
 from pathlib import Path
 import logging
+from astropy.utils.exceptions import AstropyUserWarning
+from astropy.utils.exceptions import AstropyWarning
+import warnings
 
 # # importing our classes depends on whether this file as a script or module
 # if __name__ == "__main__": # import other modules as a script
@@ -62,11 +65,11 @@ class phase_fit():
     phase_curve = [["H","G"],["H","G1","G2"],["H","G12"],["H","G12"]]
     model_names = [HG(), HG1G2(), HG12(), HG12_Pen16()]
 
-    # # use only the phase functions
-    # model_names_str = ["HG"]
-    # model_short = ["_B89"] # use shorthand for all models
-    # phase_curve = [["H","G"]]
-    # model_names = [HG()]
+    # use only the phase functions
+    model_names_str = ["HG"]
+    model_short = ["_B89"] # use shorthand for all models
+    phase_curve = [["H","G"]]
+    model_names = [HG()]
 
     # # only linear fit
     # model_names_str = ["LinearPhaseFunc"]
@@ -143,7 +146,6 @@ class phase_fit():
         # self.orbital_elements_id=unique_ids["orbital_elements_id"]
 
         if hide_warning_flag==1:
-            import warnings
             print("hide warnings")
             warnings.filterwarnings('ignore')
 
@@ -755,16 +757,38 @@ class phase_fit():
                         if len(alpha)<=len(pc): # check that there is enough data to fit
                             print("less data to fit than parameters")
                             break
-                        model = self.fitter(model_name, alpha, mag, weights=1.0/np.array(mag_err)) # fit using weights by uncertainty
+
+                        # !!! RECORD ANY WARNINGS ETC? see fitter.fit_info
+                        # logging will record these warnings
+
+                        # model = self.fitter(model_name, alpha, mag, weights=1.0/np.array(mag_err)) # fit using weights by uncertainty
                         # if k==1:
                         #     model = fitter(model_name, alpha, mag) # drop the weights for the first fit
                         # else:
                         #     model = fitter(model_name, alpha, mag, weights=1.0/np.array(mag_err))
 
-                        model_str=self.model_names_str[i]
+                        # warnings.filterwarnings("error")
+                        # print("start fit")
+                        # try:
+                        #     model = self.fitter(model_name, alpha, mag, weights=1.0/np.array(mag_err)) # fit using weights by uncertainty
+                        # except Warning:
+                        #     warning_list=warnings.catch_warnings(*, record=False, module=None)
+                        #     print ('Warning was raised as an exception!')
+                        # except RuntimeWarning:
+                        #     print ('RuntimeWarning was raised as an exception!')
+                        # except AstropyWarning:
+                        #     print ('AstropyWarning was raised as an exception!')
+                        # except AstropyUserWarning:
+                        #     print ('AstropyUserWarning was raised as an exception!')
+                        # print("end fit")
 
-                        # !!! RECORD ANY WARNINGS ETC? see fitter.fit_info
-                        # logging will record these warnings
+                        with warnings.catch_warnings(record=True) as w:
+                            model = self.fitter(model_name, alpha, mag, weights=1.0/np.array(mag_err)) # fit using weights by uncertainty
+                            if len(w)>0:
+                                print(w[-1].message)
+                                logging.warning("{} - {} - {} - {}".format(self.name,model_str,filt,w[-1].message))
+
+                        model_str=self.model_names_str[i]
 
                         param_names=model.param_names
                         params=model.parameters
@@ -832,7 +856,8 @@ class phase_fit():
 
                             if N_mag_err>N_data_fit:
                                 # ERROR
-                                logging.warning("{} - N_mag_err>N_data_fit".format(self.name))
+                                logging.warning("{} - {} - {} - N_mag_err>N_data_fit".format(self.name,model_str,filt))
+                            logging.warning("{} - {} - {} - {}".format(self.name,model_str,filt,w[-1].message))
 
                             # check for any nans?
 
