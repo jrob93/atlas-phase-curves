@@ -786,7 +786,7 @@ class phase_fit():
                             model = self.fitter(model_name, alpha, mag, weights=1.0/np.array(mag_err)) # fit using weights by uncertainty
                             if len(w)>0:
                                 print(w[-1].message)
-                                logging.warning("{} - {} - {} - {}".format(self.name,model_str,filt,w[-1].message))
+                                logging.warning("{} - {} - {} - {} - {}".format(self.mpc_number,self.name,model_str,filt,w[-1].message))
 
                         model_str=self.model_names_str[i]
 
@@ -856,7 +856,7 @@ class phase_fit():
 
                             if N_mag_err>N_data_fit:
                                 # ERROR
-                                logging.warning("{} - {} - {} - N_mag_err>N_data_fit".format(self.name,model_str,filt))
+                                logging.warning("{} - {} - {} - {} - N_mag_err>N_data_fit".format(self.mpc_number,self.name,model_str,filt))
 
                             # check for any nans?
 
