@@ -857,7 +857,6 @@ class phase_fit():
                             if N_mag_err>N_data_fit:
                                 # ERROR
                                 logging.warning("{} - {} - {} - N_mag_err>N_data_fit".format(self.name,model_str,filt))
-                            logging.warning("{} - {} - {} - {}".format(self.name,model_str,filt,w[-1].message))
 
                             # check for any nans?
 
