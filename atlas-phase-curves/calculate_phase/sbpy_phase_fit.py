@@ -65,11 +65,11 @@ class phase_fit():
     phase_curve = [["H","G"],["H","G1","G2"],["H","G12"],["H","G12"]]
     model_names = [HG(), HG1G2(), HG12(), HG12_Pen16()]
 
-    # use only the phase functions
-    model_names_str = ["HG"]
-    model_short = ["_B89"] # use shorthand for all models
-    phase_curve = [["H","G"]]
-    model_names = [HG()]
+    # # use only the phase functions
+    # model_names_str = ["HG"]
+    # model_short = ["_B89"] # use shorthand for all models
+    # phase_curve = [["H","G"]]
+    # model_names = [HG()]
 
     # # only linear fit
     # model_names_str = ["LinearPhaseFunc"]
