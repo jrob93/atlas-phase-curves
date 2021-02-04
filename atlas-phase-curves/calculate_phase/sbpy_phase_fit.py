@@ -160,13 +160,24 @@ class phase_fit():
         # data_all_filt=atlas_SQL_query(cnx=cnx,mpc_number=mpc_num)
         data_all_filt=atlas_SQL_query_orbid(cnx,orbid)
 
+        print("data before date cut = {}".format(len(data_all_filt)))
         # cut by date range. Note that different filters may have different dates/epochs!
         if t_start:
             data_all_filt=data_all_filt[data_all_filt['mjd']>float(t_start)]
         if t_end:
+            print(data_all_filt[~(data_all_filt['mjd']<float(t_end))])
             data_all_filt=data_all_filt[data_all_filt['mjd']<float(t_end)]
+            print(data_all_filt)
         # else: # if t_end is not defined default to the hard cap for date
         #     data_all_filt=data_all_filt[data_all_filt['mjd']<self.date_hard_cap]
+        print("data after date cut = {}".format(len(data_all_filt)))
+
+        # exit()
+
+        # DROP ALL ROWS WITH A NAN? !!!
+        print("data before nan cut = {}".format(len(data_all_filt)))
+        data_all_filt=data_all_filt.dropna()
+        print("data after nan cut = {}".format(len(data_all_filt)))
 
         return data_all_filt
 
@@ -474,27 +485,45 @@ class phase_fit():
         vals=df_obj[cols].iloc[0]
         vals=np.array(vals).astype(str)
 
+        for c,v in zip(cols,vals):
+            print(c,v)
+
         # print(cols)
         # print(list(df_obj))
         # print(vals)
         # print(len(cols),len(vals))
         # print(len(list(df_obj)))
 
+        N_cols=len(cols)
+        N_vals=len(vals)
+
         col_vals_update=""
-        for i in range(len(cols)):
-            # print(cols[i],vals[i])
+        for i in range(N_cols):
+            print("update {} {}".format(cols[i],vals[i]))
             # get rid of if statement if possible? better coding? list comprehension?
-            # if np.isnan(vals[i]):
+
+            # catch any values that are nan
             if vals[i].lower()=="nan": # mysql doesn't understand nan, needs NULL
                 vals[i]="NULL"
+
+            # catch any dates that will need fixed
+            if cols[i] in ["name","phase_curve_refresh_date_o","phase_curve_refresh_date_c"]: # these fields are strings and need quotation marks
+                col_vals_update+="{}=\"{}\",".format(cols[i],vals[i])
+                vals[i]="\"{}\"".format(vals[i])
             else:
-                if cols[i] in ["name","phase_curve_refresh_date_o","phase_curve_refresh_date_c"]: # these fields are strings and need quotation marks
-                    col_vals_update+="{}=\"{}\",".format(cols[i],vals[i])
-                    vals[i]="\"{}\"".format(vals[i])
-                else:
-                    col_vals_update+="{}={},".format(cols[i],vals[i])
-        col_vals_update=col_vals_update[:-1]
+                col_vals_update+="{}={},".format(cols[i],vals[i])
+
+        col_vals_update=col_vals_update[:-1] # drop the last comma
         # print(col_vals_update)
+
+        # sanity check to make sure no values are dropped
+        # print(col_vals_update.split(","))
+        N_col_vals_update=len(col_vals_update.split(","))
+        if N_col_vals_update!=N_vals or N_col_vals_update!=N_cols:
+            print("check lengths: {} {} {}".format(len(col_vals_update.split(",")),len(vals),len(cols)))
+            warning_message="{} - {} - SQL query lengths do not add up".format(self.mpc_number,self.name)
+            print(warning_message)
+            logging.warning(warning_message)
 
         # qry = u"""UPDATE %(tab_name)s SET {} WHERE mpc_number=%(mpc_number)s;""".format(col_vals_update) % locals()
 
@@ -503,9 +532,10 @@ class phase_fit():
 
         # qry=qry.replace('=nan', '=NULL') # mysql doesn't understand nan, needs NULL
 
-        # print(qry)
+        print(qry)
         # exit()
 
+        # print("\n!!!!!!!!!\nUNCOMMENT TO PUSH!\n!!!!!!!!!\n")
         self.cursor2.execute(qry)
         self.cnx2.commit()
 
@@ -601,6 +631,7 @@ class phase_fit():
         # data_all_filt=self.get_obj_data(self.cnx1,self.mpc_number,self.start_date,self.end_date)
         data_all_filt=self.get_obj_data(self.cnx1,self.orbital_elements_id,self.start_date,self.end_date)
         # print(data_all_filt)
+        print(data_all_filt[np.isnan(data_all_filt["mjd"])])
 
         # get the object metadata and combine with the phase fit dataframe structure
         # df_obj=self.get_obj_metadata(self.cnx1,self.mpc_number)
@@ -655,7 +686,7 @@ class phase_fit():
             H_abs_mag=float(df_obj.iloc[0]['H_abs_mag'])
             # print("G_slope = {}\nH_abs_mag = {}".format(G_slope,H_abs_mag))
 
-            # do filter correction from V band (Heinze et al. 2020)
+            # do filter correction from V band (Heinze et al. 2020) - see also Erasmus et al 2020 for the c-o colours of S and C types (0.388 and 0.249 respectively)
             if filt=="o":
                 H_abs_mag+=-0.332
             if filt=="c":
@@ -707,20 +738,30 @@ class phase_fit():
                 data=data_filt
                 data=data.sort_values("phase_angle") # ensure that the dataframe is in order for plotting
 
+                # print("DATA WITH NAN")
+                # print(data[data.isna().any(axis=1)])
+
+                print("{} starting data".format(len(data)))
+
                 # drop any measurements with zero uncertainty
                 data_zero_err=data[data['merr']==0]
                 data=data[data['merr']!=0]
+                print("{} zero error".format(len(data)))
                 # drop measurements with small (or zero) uncertainty MOVE THIS TO A VARIABLE UP TOP!
                 data_small_err=data[data['merr']<self.mag_err_small]
                 data=data[~(data['merr']<self.mag_err_small)]
+                print("{} small error".format(len(data)))
 
                 # drop measurements near galactic plane
                 data_gal=data[np.absolute(data["galactic_latitude"])<self.gal_lat_cut]
                 data=data[~(np.absolute(data["galactic_latitude"])<self.gal_lat_cut)]
+                print("{} galactic plane".format(len(data)))
 
                 # phase angle cut for linear fit
                 if self.model_names_str[i]=="LinearPhaseFunc":
                     data=data[(data["phase_angle"]>self.phase_lin_min) & (data["phase_angle"]<self.phase_lin_max)]
+
+                print("{} data after cuts".format(len(data)))
 
                 if len(data)==0:
                     print("no data, cannot fit")
@@ -732,6 +773,9 @@ class phase_fit():
 
                     # print("iteration: {}".format(k))
                     print("iteration: {}, N_data={}".format(k,len(data)))
+
+                    # print("DATA WITH NAN")
+                    # print(data[data.isna().any(axis=1)])
 
                     # extract asteroid phase data from data, with units
                     alpha = np.array(data['phase_angle']) * u.deg
@@ -785,8 +829,9 @@ class phase_fit():
                         with warnings.catch_warnings(record=True) as w:
                             model = self.fitter(model_name, alpha, mag, weights=1.0/np.array(mag_err)) # fit using weights by uncertainty
                             if len(w)>0:
-                                print(w[-1].message)
-                                logging.warning("{} - {} - {} - {} - {}".format(self.mpc_number,self.name,model_str,filt,w[-1].message))
+                                warning_message="{} - {} - {} - {} - {}".format(self.mpc_number,self.name,model_str,filt,w[-1].message)
+                                print(warning_message)
+                                logging.warning(warning_message)
 
                         model_str=self.model_names_str[i]
 
@@ -854,6 +899,7 @@ class phase_fit():
                             ier=self.fitter.fit_info['ierr']
                             N_mag_err=len(mag_err[np.array(mag_err)<self.mag_err_threshold]) # leq?
 
+                            print("N_mag_err={}".format(N_mag_err))
                             if N_mag_err>N_data_fit:
                                 # ERROR
                                 logging.warning("{} - {} - {} - {} - N_mag_err>N_data_fit".format(self.mpc_number,self.name,model_str,filt))
@@ -982,12 +1028,19 @@ class phase_fit():
 
                     k+=1
 
+        print(df_obj.iloc[0]["phase_curve_N_mag_err_B89_o"])
+        print(df_obj.iloc[0]["phase_curve_N_fit_B89_o"])
+
         # push ALL the data
         if self.push_fit==True:
 
             # # DO SOMETHING HERE TO STORE THE LINEAR PHASE FIT
             # if self.model_names_str[i]=="LinearPhaseFunc":
             #     print("store/push linear fit data")
+
+            if df_obj.iloc[0]["phase_curve_N_mag_err_B89_o"]>df_obj.iloc[0]["phase_curve_N_fit_B89_o"]:
+                # ERROR
+                logging.warning("{} - {} - {} - {} - N_mag_err>N_data_fit".format(self.mpc_number,self.name,model_str,filt))
 
             self.push_obj_db(df_obj)
 
