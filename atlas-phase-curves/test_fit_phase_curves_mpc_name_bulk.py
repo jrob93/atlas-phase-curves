@@ -19,7 +19,7 @@ def phase_fit_func_mpc(mpc_number,end_date):
     # with open("tmp", "w") as f:
     with open("{}.out".format(mpc_number), "w") as f:
         sys.stdout = f # redirect output to file (or just suppress? https://stackoverflow.com/questions/8447185/to-prevent-a-function-from-printing-in-the-batch-console-in-python)
-        fit = sbpy_phase_fit.phase_fit(mpc_number=mpc_number,end_date=end_date,push_fit_flag=False,hide_warning_flag=False)
+        fit = sbpy_phase_fit.phase_fit(mpc_number=mpc_number,end_date=end_date,push_fit_flag=True,hide_warning_flag=False)
         check=fit.calculate()
         sys.stdout = sys.__stdout__ # need to reset the redirect!
     # fit = sbpy_phase_fit.phase_fit(mpc_number=mpc_number,push_fit_flag=True,hide_warning_flag=True)
@@ -30,7 +30,7 @@ def phase_fit_func_mpc(mpc_number,end_date):
 def phase_fit_func_name(name):
     with open("tmp", "w") as f:
         sys.stdout = f
-        fit = sbpy_phase_fit.phase_fit(name=name,push_fit_flag=False,hide_warning_flag=True)
+        fit = sbpy_phase_fit.phase_fit(name=name,push_fit_flag=True,hide_warning_flag=True)
         check=fit.calculate()
         sys.stdout = sys.__stdout__
     return check
