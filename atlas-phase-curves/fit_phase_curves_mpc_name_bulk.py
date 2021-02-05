@@ -29,7 +29,7 @@ def phase_fit_func_mpc(mpc_number,end_date):
 def phase_fit_func_name(name):
     with open("tmp", "w") as f:
         sys.stdout = f
-        fit = sbpy_phase_fit.phase_fit(name=name,push_fit_flag=True,hide_warning_flag=True)
+        fit = sbpy_phase_fit.phase_fit(name=name,end_date=end_date,push_fit_flag=True,hide_warning_flag=True)
         check=fit.calculate()
         sys.stdout = sys.__stdout__
     return check
@@ -70,7 +70,11 @@ phase_fit_functions=[phase_fit_func_mpc,phase_fit_func_name]
 # set the date beyond which no obs are counted
 end_date=Time(Time.now(),scale='utc').mjd
 print(end_date)
-exit()
+# exit()
+
+# wipe the log file
+with open("sbpy_phase_fit.log","w") as f:
+    f.close()
 
 # create a file that records the date, the start and end mpc numbers in a batch, the length of time to complete a batch, the number of jobs in a batch and the number of objects done per sec
 today=datetime.datetime.now()
