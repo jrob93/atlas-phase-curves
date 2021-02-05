@@ -70,7 +70,7 @@ phase_fit_functions=[phase_fit_func_mpc,phase_fit_func_name]
 # set the date beyond which no obs are counted
 end_date=Time(Time.now(),scale='utc').mjd
 print(end_date)
-exit()
+# exit()
 
 # create a file that records the date, the start and end mpc numbers in a batch, the length of time to complete a batch, the number of jobs in a batch and the number of objects done per sec
 today=datetime.datetime.now()
