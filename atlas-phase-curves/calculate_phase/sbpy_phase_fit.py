@@ -1028,8 +1028,8 @@ class phase_fit():
 
                     k+=1
 
-        print(df_obj.iloc[0]["phase_curve_N_mag_err_B89_o"])
-        print(df_obj.iloc[0]["phase_curve_N_fit_B89_o"])
+        print("N_mag_err before push = {}".format(df_obj.iloc[0]["phase_curve_N_mag_err_B89_o"]))
+        print("N_fit before push = {}".format(df_obj.iloc[0]["phase_curve_N_fit_B89_o"]))
 
         # push ALL the data
         if self.push_fit==True:
