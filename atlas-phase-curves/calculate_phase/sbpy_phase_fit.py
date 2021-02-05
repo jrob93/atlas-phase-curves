@@ -535,9 +535,9 @@ class phase_fit():
         print(qry)
         # exit()
 
-        print("\n!!!!!!!!!\nUNCOMMENT TO PUSH!\n!!!!!!!!!\n")
-        # self.cursor2.execute(qry)
-        # self.cnx2.commit()
+        # print("\n!!!!!!!!!\nUNCOMMENT TO PUSH!\n!!!!!!!!!\n")
+        self.cursor2.execute(qry)
+        self.cnx2.commit()
 
         return
 
