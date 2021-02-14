@@ -16,6 +16,24 @@ This function version returns the dataframe
 
 from pandas import read_sql_query
 
+def update_atlas_objects(cnx):
+
+    """ Call the update_atlas_objects procedure written by Dave. Does what it says on the tin - updates fields such as detection_count
+    Takes a long time to run!
+    """
+
+    qry="CALL update_atlas_objects"
+    # qry="SELECT * from atlas_objects limit 100"
+    print(qry)
+    cursor=cnx.cursor()
+    cursor.execute(qry)
+    cnx.commit()
+    # print(cursor)
+    # for c in cursor:
+    #     print(c)
+
+    return
+
 def get_orb_elements_id(cnx,mpc_number=False,name=False):
     """ Function to retrieve the orbital_elements_id from either mpc_number or name.
      name case should not matter for SQL """

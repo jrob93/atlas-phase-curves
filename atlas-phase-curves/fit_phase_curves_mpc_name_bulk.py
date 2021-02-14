@@ -3,7 +3,7 @@ import pandas as pd
 import mysql.connector
 import numpy as np
 import time
-import datetime
+from datetime import datetime
 import multiprocessing
 from multiprocessing import Pool
 import subprocess
@@ -12,6 +12,7 @@ import cProfile
 import sys
 from contextlib import redirect_stdout
 from calculate_phase import atlas_database_connection
+from calculate_phase.atlas_SQL_query_df import update_atlas_objects
 from astropy.time import Time
 
 # define the fitting functions
@@ -34,8 +35,27 @@ def phase_fit_func_name(name):
         sys.stdout = sys.__stdout__
     return check
 
+# wipe the log file
+log_file="sbpy_phase_fit.log"
+with open(log_file,"w") as f:
+    f.close()
+
 # connect to the database
 cnx=atlas_database_connection.database_connection().connect()
+
+# ADD A QUERY TO CALL update_atlas_objects
+# qry="CALL update_atlas_objects"
+# self.cnx.cursor()
+# self.cursor.execute(qry)
+# self.cnx.commit()
+with open(log_file,"a") as f:
+    f.write("{} start update_atlas_objects\n".format(Time(Time.now(),scale='utc',format="iso")))
+# update_atlas_objects(cnx)
+with open(log_file,"a") as f:
+    f.write("{} start update_atlas_objects\n".format(Time(Time.now(),scale='utc',format="iso")))
+
+# exit()
+
 # perform the query and store results as a dataframe
 qry="select mpc_number,name from atlas_objects;"
 df=pd.read_sql_query(qry,cnx)
@@ -68,18 +88,21 @@ object_lists=[mpc_number_list,name_list]
 phase_fit_functions=[phase_fit_func_mpc,phase_fit_func_name]
 
 # set the date beyond which no obs are counted
-end_date=Time(Time.now(),scale='utc').mjd
+end_date=Time(Time.now(),scale='utc',format="iso")
+end_date_mjd=round(end_date.mjd) # comvert to mjd and round so that it doesn't matter what hour we run at
 print(end_date)
+with open(log_file,"a") as f:
+    f.write("set end_date={}, end_date_mjd={}\n".format(end_date,end_date_mjd))
+
 # exit()
 
-# wipe the log file
-with open("sbpy_phase_fit.log","w") as f:
-    f.close()
-
 # create a file that records the date, the start and end mpc numbers in a batch, the length of time to complete a batch, the number of jobs in a batch and the number of objects done per sec
-today=datetime.datetime.now()
+# today=datetime.datetime.now()
+print(type(end_date.value))
+today=datetime.fromisoformat(end_date.value)
 fname="fit_phase_curves_bulk_record_{}-{}-{}.csv".format(today.day,today.month,today.year)
 print(fname)
+exit()
 of=open(fname,"w")
 of.write("date,mpc1,mpc2,t(s),N_jobs,rate(1/s)\n")
 
@@ -121,7 +144,7 @@ for obj_list,phase_fit_func in zip(object_lists,phase_fit_functions):
         print("run parallel, {} threads".format(threads))
         print("fit objects {} - {}".format(sub_list[0],sub_list[-1]))
         pool = Pool(threads)
-        multiple_results = [pool.apply_async(phase_fit_func, args=(n,end_date,)) for n in sub_list]
+        multiple_results = [pool.apply_async(phase_fit_func, args=(n,end_date_mjd,)) for n in sub_list]
         pool.close()
         pool.join()
         t_end=time.time()
