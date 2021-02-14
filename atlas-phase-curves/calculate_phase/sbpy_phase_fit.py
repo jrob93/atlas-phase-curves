@@ -58,14 +58,20 @@ class phase_fit():
     fitter = LevMarLSQFitter()
 
     # add functionality to choose models!!!
-
-    # use only the phase functions
-    model_names_str = ["HG", "HG1G2", "HG12", "HG12_Pen16"]
-    model_short = ["_B89","_3M10","_2M10","_P16"] # use shorthand for all models
-    phase_curve = [["H","G"],["H","G1","G2"],["H","G12"],["H","G12"]]
-    model_names = [HG(), HG1G2(), HG12(), HG12_Pen16()]
+    all_models={
+    "HG":{"model_name_short":"_B89","model_parameters":["H","G"],"model_function":HG()},
+    "HG1G2":{"model_name_short":"_3M10","model_parameters":["H","G1","G2"],"model_function":HG1G2()},
+    "HG12":{"model_name_short":"_2M10","model_parameters":["H","G12"],"model_function":HG12()},
+    "HG12_Pen16":{"model_name_short":"_P16","model_parameters":["H","G12"],"model_function":HG12_Pen16()},
+    "LinearPhaseFunc":{"model_name_short":"_Lin","model_parameters":["H","S"],"model_function":LinearPhaseFunc(H=15,S=0.04)}
+    }
 
     # # use only the phase functions
+    # model_names_str = ["HG", "HG1G2", "HG12", "HG12_Pen16"]
+    # model_short = ["_B89","_3M10","_2M10","_P16"] # use shorthand for all models
+    # phase_curve = [["H","G"],["H","G1","G2"],["H","G12"],["H","G12"]]
+    # model_names = [HG(), HG1G2(), HG12(), HG12_Pen16()]
+
     # model_names_str = ["HG"]
     # model_short = ["_B89"] # use shorthand for all models
     # phase_curve = [["H","G"]]
@@ -99,9 +105,13 @@ class phase_fit():
         mpc_number=False,
         name=False,
         save_path=".",
+        save_file_suffix="",
         push_fit_flag=False,plot_fig_flag=False,show_fig_flag=False,save_fig_flag=False,hide_warning_flag=False,
         start_date=False,end_date=False,
-        filter_list=["o","c"]):
+        H_abs_mag_o=False,H_abs_mag_c=False,
+        model_list=["HG", "HG1G2", "HG12", "HG12_Pen16"], # ADD LinearPhaseFunc here as default?
+        filter_list=["o","c"],
+        tab_name="atlas_phase_fits"):
 
         # set up the class
         # define object and some flags
@@ -116,11 +126,18 @@ class phase_fit():
         self.save_fig=save_fig_flag # flag to save the figure
         self.utc_date_now=datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S") # time at which the script is run (UTC)
         self.save_path=save_path # where to save figures
+        self.save_file_suffix=save_file_suffix # option to add a suffix to the png of plot saved
+
+        self.selected_models= {key: value for key, value in self.all_models.items() if key in model_list} # create the dictionary of models to use
 
         self.start_date=start_date # only use observations after this date (mjd)
         self.end_date=end_date # only use observations before this date (mjd)
         # self.date_hard_cap=? # set a fixed date beyond which we do not consider data - SET BY end_date
         self.filters=filter_list # list of filters to use: ["o"], ["c"], ["o","c"]
+
+        # pass initial guesses for the H_abs_mag (overrides astorb value)
+        self.H_abs_mag_o=H_abs_mag_o
+        self.H_abs_mag_c=H_abs_mag_c
 
         # cnx1 is the connection where we retrieve the data from
         self.cnx1=database_connection().connect()
@@ -130,7 +147,7 @@ class phase_fit():
         self.cnx2 = self.cnx1
         self.cursor2 = self.cursor1
 
-        self.tab_name="atlas_phase_fits" # table name within the database
+        self.tab_name=tab_name # table name within the database
 
         # create an empty pandas series to hold all object info
         # self.df_obj_datafit=pd.Series(data=np.zeros(len(self.db_columns))+np.nan,index=self.db_columns) # create an empty series to store all values for the object: metadata and fit data
@@ -541,7 +558,7 @@ class phase_fit():
 
         return
 
-    def plot_phase_fit(self,model,model_str,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
+    def plot_phase_fit(self,model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
     data_filt,data_zero_err,data_small_err,data_gal):
         # plot a figure
 
@@ -609,11 +626,11 @@ class phase_fit():
 
         ax3.set_xlabel("MJD")
 
-        ax1.set_title("{}_{}_{}_{}_{}".format(os.path.basename(__file__).split('.')[0],self.mpc_number,model_str,self.clip_label,filt))
+        ax1.set_title("{}_{}_{}_{}_{}".format(os.path.basename(__file__).split('.')[0],self.mpc_number,model_name,self.clip_label,filt))
         plt.tight_layout()
 
         if self.save_fig:
-            fname="{}/{}_{}_{}_{}_{}.png".format(self.save_path,os.path.basename(__file__).split('.')[0],self.mpc_number,model_str,self.clip_label,filt)
+            fname="{}/{}_{}_{}_{}_{}{}.png".format(self.save_path,os.path.basename(__file__).split('.')[0],self.mpc_number,model_name,self.clip_label,filt,self.save_file_suffix)
             print(fname)
             plt.savefig(fname, bbox_inches='tight')
 
@@ -684,13 +701,23 @@ class phase_fit():
             # H_abs_mag=float(df_HG.iloc[0]['H_abs_mag'])
             G_slope=float(df_obj.iloc[0]['G_slope'])
             H_abs_mag=float(df_obj.iloc[0]['H_abs_mag'])
-            # print("G_slope = {}\nH_abs_mag = {}".format(G_slope,H_abs_mag))
+            print("G_slope = {}\nH_abs_mag = {}".format(G_slope,H_abs_mag))
 
             # do filter correction from V band (Heinze et al. 2020) - see also Erasmus et al 2020 for the c-o colours of S and C types (0.388 and 0.249 respectively)
             if filt=="o":
-                H_abs_mag+=-0.332
+                if self.H_abs_mag_o:
+                    print("override shifted astorb value of {}".format(H_abs_mag-0.332))
+                    H_abs_mag=self.H_abs_mag_o
+                    print(H_abs_mag)
+                else:
+                    H_abs_mag+=-0.332
             if filt=="c":
-                H_abs_mag+=0.054
+                if self.H_abs_mag_c:
+                    print("override shifted astorb value of {}".format(H_abs_mag+0.054))
+                    H_abs_mag=self.H_abs_mag_c
+                    print(H_abs_mag)
+                else:
+                    H_abs_mag+=0.054
 
             # use our own guess for H, e.g. a previous fit?
             # if H_abs_mag_o is passed use this: # median of phase_curve_H_2M10_o,phase_curve_H_3M10_o,phase_curve_H_B89_o,phase_curve_H_P16_o
@@ -715,15 +742,20 @@ class phase_fit():
             # continue
 
             # iterate over all models
-            for i,model_name in enumerate(self.model_names):
+            # for i,model_name in enumerate(self.model_names):
+            for model_name,model_values in self.selected_models.items():
 
-                ms=self.model_short[i]
-                pc=self.phase_curve[i]
+                print(model_name,model_values)
 
-                # if ms!=model_short[1]:
-                #     continue
+                # ms=self.model_short[i]
+                # pc=self.phase_curve[i]
+                ms=model_values["model_name_short"]
+                pc=model_values["model_parameters"]
+                model_func=model_values["model_function"]
 
-                old_params=[999]*len(model_name.parameters)
+                print(ms,pc,model_func)
+
+                old_params=[999]*len(model_func.parameters)
 
                 # store models/labels/cut data for plotting
                 label_iter_list=[]
@@ -732,7 +764,7 @@ class phase_fit():
                 alpha_cut_iter_list=[]
 
                 # print("{}, {}: fit {}, filter {}".format(self.mpc_number,self.mpc_number,self.model_names_str[i],filt))
-                print("{}, {}: fit {}, filter {}".format(self.name,self.mpc_number,self.model_names_str[i],filt))
+                print("{}, {}: fit {}, filter {}".format(self.name,self.mpc_number,model_name,filt))
 
                 # initialise the data that we will iteratively fit and cut
                 data=data_filt
@@ -742,6 +774,11 @@ class phase_fit():
                 # print(data[data.isna().any(axis=1)])
 
                 print("{} starting data".format(len(data)))
+
+                # # do an initial mag diff cut to remove extreme outliers
+                # mag_med_cut=5
+                # data=data[np.absolute(np.array(data["reduced_mag"]-np.nanmedian(data["reduced_mag"])))<mag_med_cut]
+                # print("{} {} mag diff".format(len(data),mag_med_cut))
 
                 # drop any measurements with zero uncertainty
                 data_zero_err=data[data['merr']==0]
@@ -758,7 +795,7 @@ class phase_fit():
                 print("{} galactic plane".format(len(data)))
 
                 # phase angle cut for linear fit
-                if self.model_names_str[i]=="LinearPhaseFunc":
+                if model_name=="LinearPhaseFunc":
                     data=data[(data["phase_angle"]>self.phase_lin_min) & (data["phase_angle"]<self.phase_lin_max)]
 
                 print("{} data after cuts".format(len(data)))
@@ -827,13 +864,13 @@ class phase_fit():
                         # print("end fit")
 
                         with warnings.catch_warnings(record=True) as w:
-                            model = self.fitter(model_name, alpha, mag, weights=1.0/np.array(mag_err)) # fit using weights by uncertainty
+                            model = self.fitter(model_func, alpha, mag, weights=1.0/np.array(mag_err)) # fit using weights by uncertainty
                             if len(w)>0:
-                                warning_message="{} - {} - {} - {} - {}".format(self.mpc_number,self.name,model_str,filt,w[-1].message)
+                                warning_message="{} - {} - {} - {} - {}".format(self.mpc_number,self.name,model_name,filt,w[-1].message)
                                 print(warning_message)
                                 logging.warning(warning_message)
 
-                        model_str=self.model_names_str[i]
+                        # model_name=self.model_names_str[i]
 
                         param_names=model.param_names
                         params=model.parameters
@@ -843,7 +880,7 @@ class phase_fit():
                         # print(err_x)
 
                         # label each fit
-                        labels=["{}. {}".format(k,model_str)]
+                        labels=["{}. {}".format(k,model_name)]
                         for l in range(len(model.parameters)):
                             labels.append("{}={:.2f} ".format(param_names[l],params[l]))
                         label=", ".join(labels)
@@ -902,7 +939,7 @@ class phase_fit():
                             print("N_mag_err={}".format(N_mag_err))
                             if N_mag_err>N_data_fit:
                                 # ERROR
-                                logging.warning("{} - {} - {} - {} - N_mag_err>N_data_fit".format(self.mpc_number,self.name,model_str,filt))
+                                logging.warning("{} - {} - {} - {} - N_mag_err>N_data_fit".format(self.mpc_number,self.name,model_name,filt))
 
                             # check for any nans?
 
@@ -927,7 +964,7 @@ class phase_fit():
                             # STORE FIT DAT IN DF
 
                             # DO SOMETHING HERE TO EXTRACT THE LINEAR PHASE FIT?
-                            if self.model_names_str[i]=="LinearPhaseFunc":
+                            if model_name=="LinearPhaseFunc":
                                 print("record linear fit data")
 
                             print(df_obj["detection_count_{}".format(filt)])
@@ -947,7 +984,7 @@ class phase_fit():
                             df_obj["phase_curve_ier{}_{}".format(ms,filt)]=ier
                             df_obj["phase_curve_N_mag_err{}_{}".format(ms,filt)]=N_mag_err
 
-                            for p in range(len(self.phase_curve[i])):
+                            for p in range(len(pc)):
                                 df_obj["phase_curve_{}{}_{}".format(pc[p],ms,filt)]=params[p]
                                 df_obj["phase_curve_{}_err{}_{}".format(pc[p],ms,filt)]=param_err_x[p]
 
@@ -996,7 +1033,7 @@ class phase_fit():
 
                             if self.plot_fig:
 
-                                self.plot_phase_fit(model,model_str,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
+                                self.plot_phase_fit(model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
                                 data_filt,data_zero_err,data_small_err,data_gal)
 
                             # exit()
@@ -1040,7 +1077,7 @@ class phase_fit():
 
             if df_obj.iloc[0]["phase_curve_N_mag_err_B89_o"]>df_obj.iloc[0]["phase_curve_N_fit_B89_o"]:
                 # ERROR
-                logging.warning("{} - {} - {} - {} - N_mag_err>N_data_fit".format(self.mpc_number,self.name,model_str,filt))
+                logging.warning("{} - {} - {} - {} - N_mag_err>N_data_fit".format(self.mpc_number,self.name,model_name,filt))
 
             self.push_obj_db(df_obj)
 
