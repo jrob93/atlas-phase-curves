@@ -12,7 +12,7 @@ print(all_columns)
 
 # these columns should be added as integers, not floats
 # DOUBLE CHECK WHAT DATA TYPE EACH COLUMN SHOULD BE
-metric_ints = ["N_fit","N_nights","N_iter","N_alpha_low","nfev","ier"]
+metric_ints = ["N_fit","N_nights","N_iter","N_alpha_low","nfev","ier","N_mag_err"]
 ints = ["detection_count","detection_count_o","detection_count_c"]
 tinyints = ["updated"]
 datetimes = ["last_photometry_update_date_o","phase_curve_refresh_date_o",
@@ -23,13 +23,16 @@ mediumints = ["primaryId","orbital_elements_id","mpc_number"]
 decimals = ["last_detection_mjd"]
 
 # add lines that will add the following columns
-of=open("create_atlas_objects_phase.sql","w")
+# of=open("create_atlas_objects_phase.sql","w")
+of=open("create_atlas_phase_fits.sql","w")
+# of=open("create_test_table3.sql","w")
 
 # Select the database to load
-# of.write("USE atlas_objects;\n")
+# of.write("USE atlas_moving_objects;\n")
 
 # create the table with the columns
-of.write("CREATE TABLE test_table (\n")
+# of.write("CREATE TABLE test_table3 (\n")
+of.write("CREATE TABLE atlas_phase_fits (\n")
 new_columns=all_columns
 for i,c in enumerate(new_columns):
 
@@ -57,6 +60,12 @@ for i,c in enumerate(new_columns):
         of.write("{}\n".format(new_col_sql))
     else:
         of.write("{},\n".format(new_col_sql))
+
+# ADD LINES TO CREATE TABLE WITH THE INDEXES:
+id1="PRIMARY KEY (primaryId)"
+id2="UNIQUE INDEX (orbital_elements_id)"
+id3="INDEX (mpc_number)"
+of.write(",{},\n{},\n{}\n".format(id1,id2,id3))
 
 of.write(");")
 of.close()
