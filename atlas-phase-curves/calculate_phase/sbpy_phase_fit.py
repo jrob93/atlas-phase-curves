@@ -1003,6 +1003,17 @@ class phase_fit():
                             ier=self.fitter.fit_info['ierr']
                             N_mag_err=len(mag_err[np.array(mag_err)<self.mag_err_threshold]) # leq?
 
+                            # calculate the residual properties
+                            residuals = mag - model(alpha)
+                            # print(mag)
+                            # print(residuals)
+                            # if len(residuals)!=N_data_fit:
+                            #     print("ERROR")
+                            #     exit()
+                            OC_mean = np.mean(residuals)
+                            OC_std = np.std(residuals)
+                            OC_range = np.absolute(np.amax(residuals)-np.amin(residuals))
+
                             print("N_mag_err={}".format(N_mag_err))
                             if N_mag_err>N_data_fit:
                                 # ERROR
@@ -1050,6 +1061,9 @@ class phase_fit():
                             df_obj["phase_curve_nfev{}_{}".format(ms,filt)]=nfev
                             df_obj["phase_curve_ier{}_{}".format(ms,filt)]=ier
                             df_obj["phase_curve_N_mag_err{}_{}".format(ms,filt)]=N_mag_err
+                            df_obj["phase_curve_OC_mean{}_{}".format(ms,filt)]=OC_mean
+                            df_obj["phase_curve_OC_std{}_{}".format(ms,filt)]=OC_std
+                            df_obj["phase_curve_OC_range{}_{}".format(ms,filt)]=OC_range
 
                             for p in range(len(pc)):
                                 df_obj["phase_curve_{}{}_{}".format(pc[p],ms,filt)]=params[p]
