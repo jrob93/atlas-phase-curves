@@ -88,13 +88,14 @@ object_lists=[mpc_number_list,name_list]
 phase_fit_functions=[phase_fit_func_mpc,phase_fit_func_name]
 
 # set the date beyond which no obs are counted
-end_date=Time(Time.now(),scale='utc',format="iso")
+# end_date=Time(Time.now(),scale='utc',format="iso")
+end_date=Time("2021-02-14",scale='utc',format="iso")
 end_date_mjd=round(end_date.mjd) # comvert to mjd and round so that it doesn't matter what hour we run at
 print(end_date)
 with open(log_file,"a") as f:
     f.write("set end_date={}, end_date_mjd={}\n".format(end_date,end_date_mjd))
 
-# exit()
+#exit()
 
 # create a file that records the date, the start and end mpc numbers in a batch, the length of time to complete a batch, the number of jobs in a batch and the number of objects done per sec
 # today=datetime.datetime.now()
@@ -102,7 +103,7 @@ print(type(end_date.value))
 today=datetime.fromisoformat(end_date.value)
 fname="fit_phase_curves_bulk_record_{}-{}-{}.csv".format(today.day,today.month,today.year)
 print(fname)
-exit()
+# exit()
 of=open(fname,"w")
 of.write("date,mpc1,mpc2,t(s),N_jobs,rate(1/s)\n")
 
@@ -165,7 +166,7 @@ for obj_list,phase_fit_func in zip(object_lists,phase_fit_functions):
 
         print()
 
-        of.write("{},{},{},{},{},{}\n".format(datetime.datetime.now(),sub_list[0],sub_list[-1],t_elapsed,len(sub_list),float(len(sub_list))/t_elapsed))
+        of.write("{},{},{},{},{},{}\n".format(datetime.now(),sub_list[0],sub_list[-1],t_elapsed,len(sub_list),float(len(sub_list))/t_elapsed))
         of.flush()
 
 of.close()
