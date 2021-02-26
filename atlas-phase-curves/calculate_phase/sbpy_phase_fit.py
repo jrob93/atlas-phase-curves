@@ -106,6 +106,7 @@ class phase_fit():
         name=False,
         save_path=".",
         save_file_suffix="",
+        save_file_type="png",
         push_fit_flag=False,plot_fig_flag=False,show_fig_flag=False,save_fig_flag=False,hide_warning_flag=False,
         start_date=False,end_date=False,
         H_abs_mag_o=False,H_abs_mag_c=False,
@@ -127,6 +128,7 @@ class phase_fit():
         self.utc_date_now=datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S") # time at which the script is run (UTC)
         self.save_path=save_path # where to save figures
         self.save_file_suffix=save_file_suffix # option to add a suffix to the png of plot saved
+        self.save_file_type=save_file_type # option to choose type of file saved, e.g. png or pdf
 
         self.selected_models= {key: value for key, value in self.all_models.items() if key in model_list} # create the dictionary of models to use
 
@@ -630,7 +632,72 @@ class phase_fit():
         plt.tight_layout()
 
         if self.save_fig:
-            fname="{}/{}_{}_{}_{}_{}{}.png".format(self.save_path,os.path.basename(__file__).split('.')[0],self.mpc_number,model_name,self.clip_label,filt,self.save_file_suffix)
+            fname="{}/{}_{}_{}_{}_{}{}.{}".format(self.save_path,os.path.basename(__file__).split('.')[0],self.mpc_number,model_name,self.clip_label,filt,self.save_file_suffix,self.save_file_type)
+            print(fname)
+            plt.savefig(fname, bbox_inches='tight')
+
+        if self.show_fig:
+            plt.show()
+        else:
+            plt.close()
+
+        return
+
+    def plot_phase_fit_iteration(self,model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
+    data_filt,data_zero_err,data_small_err,data_gal):
+        # plot a figure
+
+        # how to pass large numbers of parameters?
+
+        if not self.show_fig:
+            import matplotlib
+            print("use agg")
+            matplotlib.use('agg') # use agg backend to stop python stealing focus when plotting
+
+        import matplotlib.pyplot as plt
+        import matplotlib.gridspec as gridspec
+
+        # extract asteroid phase data from data, with units
+        alpha = np.array(data['phase_angle']) * u.deg
+        mag = np.array(data["reduced_mag"]) * u.mag
+        mag_err = np.array(data["merr"]) * u.mag
+
+        fig = plt.figure()
+        gs = gridspec.GridSpec(1,1)
+        ax1 = plt.subplot(gs[0,0])
+
+        # plot all the data from the SQL that goes into the fitting process
+        ax1.errorbar(data_filt['phase_angle'],data_filt['reduced_mag'],data_filt['merr'], fmt='ko',label="data",zorder=0,markersize="2")
+
+        # highlight any measurements with zero uncertainty
+        ax1.scatter(data_zero_err['phase_angle'],data_zero_err['reduced_mag'],edgecolor='r',facecolor="none",marker="^",s=50,label="mag_err=0")
+        ax1.scatter(data_small_err['phase_angle'],data_small_err['reduced_mag'],edgecolor='r',facecolor="none",marker="s",s=50,label="mag_err<{}".format(self.mag_err_small))
+        # highlight low galactic latitude
+        ax1.scatter(data_gal['phase_angle'],data_gal['reduced_mag'],edgecolor='r',facecolor="none",marker="o",s=50,label="galactic_latitude<{}".format(self.gal_lat_cut))
+
+        # plot iterative fits and cuts
+        alpha_fit=np.linspace(np.amin(alpha),np.amax(alpha),100)
+        print(label_iter_list)
+        print(model_iter_list)
+        # print(k)
+        for j in range(len(model_iter_list)):
+            print(j,label_iter_list[j])
+            ax1.plot(alpha_fit,model_iter_list[j](alpha_fit),label=label_iter_list[j])
+            ax1.scatter(alpha_cut_iter_list[j],mag_cut_iter_list[j],marker="x",zorder=3)
+
+        ax1.plot(alpha_fit,model(alpha_fit),label=label)
+
+        ax1.set_xlabel('alpha(degrees)')
+        ax1.set_ylabel('reduced mag')
+        ax1.invert_yaxis()
+        ax1.legend(prop={'size': 6})
+
+        ax1.set_title("{}_{}_{}_{}_{}".format(os.path.basename(__file__).split('.')[0],self.mpc_number,model_name,self.clip_label,filt))
+        plt.tight_layout()
+
+        if self.save_fig:
+            # fname="{}/{}_{}_{}_{}_{}_iter{}.png".format(self.save_path,os.path.basename(__file__).split('.')[0],self.mpc_number,model_name,self.clip_label,filt,self.save_file_suffix)
+            fname="{}/{}_{}_{}_{}_{}_iter{}.{}".format(self.save_path,os.path.basename(__file__).split('.')[0],self.mpc_number,model_name,self.clip_label,filt,self.save_file_suffix,self.save_file_type)
             print(fname)
             plt.savefig(fname, bbox_inches='tight')
 
@@ -1033,7 +1100,9 @@ class phase_fit():
 
                             if self.plot_fig:
 
-                                self.plot_phase_fit(model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
+                                # self.plot_phase_fit(model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
+                                # data_filt,data_zero_err,data_small_err,data_gal)
+                                self.plot_phase_fit_iteration(model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
                                 data_filt,data_zero_err,data_small_err,data_gal)
 
                             # exit()
