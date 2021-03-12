@@ -36,6 +36,7 @@ class phase_fit():
     mag_err_threshold = 0.1 # limit for the error of "good" data, we record N_mag_err number of data points with error < mag_err_threshold
     mag_err_small = 0.01 # we discount observations with error less than this
     gal_lat_cut=10 # galatic latitude cut in degrees
+    mag_med_cut=2 # initial magnitude difference cut on initial HG model
 
     # set the clipping method for the phase_fit class
     def data_clip_sigma(self,data,data_predict,low=std,high=std):
@@ -109,6 +110,7 @@ class phase_fit():
         save_file_type="png",
         push_fit_flag=False,plot_fig_flag=False,show_fig_flag=False,save_fig_flag=False,hide_warning_flag=False,
         start_date=False,end_date=False,
+        mag_diff_flag=False,
         H_abs_mag_o=False,H_abs_mag_c=False,
         model_list=["HG", "HG1G2", "HG12", "HG12_Pen16"], # ADD LinearPhaseFunc here as default?
         filter_list=["o","c"],
@@ -135,6 +137,7 @@ class phase_fit():
         self.save_path=save_path # where to save figures
         self.save_file_suffix=save_file_suffix # option to add a suffix to the png of plot saved
         self.save_file_type=save_file_type # option to choose type of file saved, e.g. png or pdf
+        self.mag_diff_flag=mag_diff_flag # flag to perform an additional mag diff cut on the initial HG model
 
         self.selected_models= {key: value for key, value in self.all_models.items() if key in model_list} # create the dictionary of models to use
 
@@ -650,7 +653,7 @@ class phase_fit():
         return
 
     def plot_phase_fit_iteration(self,model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
-    data_filt,data_zero_err,data_small_err,data_gal):
+    data_filt,data_zero_err,data_small_err,data_gal,data_diff):
         # plot a figure
 
         # how to pass large numbers of parameters?
@@ -680,6 +683,10 @@ class phase_fit():
         ax1.scatter(data_small_err['phase_angle'],data_small_err['reduced_mag'],edgecolor='r',facecolor="none",marker="s",s=50,label="mag_err<{}".format(self.mag_err_small))
         # highlight low galactic latitude
         ax1.scatter(data_gal['phase_angle'],data_gal['reduced_mag'],edgecolor='r',facecolor="none",marker="o",s=50,label="galactic_latitude<{}".format(self.gal_lat_cut))
+
+        if self.mag_diff_flag:
+            #plot objects dropped in initial cut
+            ax1.scatter(data_diff['phase_angle'],data_diff['reduced_mag'],edgecolor='r',facecolor="none",marker="p",s=50,label="HG model diff<{}".format(self.mag_med_cut))
 
         # plot iterative fits and cuts
         alpha_fit=np.linspace(np.amin(alpha),np.amax(alpha),100)
@@ -849,7 +856,7 @@ class phase_fit():
                 print("{} starting data".format(len(data)))
 
                 # # do an initial mag diff cut to remove extreme outliers
-                # mag_med_cut=5
+                # mag_med_cut=2
                 # data=data[np.absolute(np.array(data["reduced_mag"]-np.nanmedian(data["reduced_mag"])))<mag_med_cut]
                 # print("{} {} mag diff".format(len(data),mag_med_cut))
 
@@ -905,6 +912,18 @@ class phase_fit():
                         for l in range(len(model.parameters)):
                             labels.append("{}={:.2f} ".format(param_names[l],params[l]))
                         label=", ".join(labels)
+
+                        if self.mag_diff_flag:
+                            # do a mag diff cut based on the initial assumed HG
+                            mask=self.data_clip_sigma(mag, model(alpha),self.mag_med_cut)
+                            data_diff=data[mask]
+                            data=data[~mask]
+                            alpha = np.array(data['phase_angle']) * u.deg
+                            mag = np.array(data["reduced_mag"]) * u.mag
+                            mag_err = np.array(data["merr"]) * u.mag
+                        else:
+                            data_diff=[]
+
 
                     else:
                         # apply the fitter to the data
@@ -1127,7 +1146,7 @@ class phase_fit():
                                 # self.plot_phase_fit(model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
                                 # data_filt,data_zero_err,data_small_err,data_gal)
                                 self.plot_phase_fit_iteration(model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
-                                data_filt,data_zero_err,data_small_err,data_gal)
+                                data_filt,data_zero_err,data_small_err,data_gal,data_diff)
 
                             # exit()
 
