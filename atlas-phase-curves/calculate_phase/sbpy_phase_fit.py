@@ -121,6 +121,12 @@ class phase_fit():
         self.mpc_number=mpc_number
         self.name=name
 
+        # set the variable for naming output files
+        if name:
+            self.file_identifier="_".join((self.name).split())
+        else:
+            self.file_identifier=self.mpc_number
+
         self.push_fit=push_fit_flag # flag to push fit to database
         self.plot_fig=plot_fig_flag # flag to generate plot for each object
         self.show_fig=show_fig_flag # flag to display interactive plot
@@ -628,11 +634,11 @@ class phase_fit():
 
         ax3.set_xlabel("MJD")
 
-        ax1.set_title("{}_{}_{}_{}_{}".format(os.path.basename(__file__).split('.')[0],self.mpc_number,model_name,self.clip_label,filt))
+        ax1.set_title("{}_{}_{}_{}_{}".format(os.path.basename(__file__).split('.')[0],self.file_identifier,model_name,self.clip_label,filt))
         plt.tight_layout()
 
         if self.save_fig:
-            fname="{}/{}_{}_{}_{}_{}{}.{}".format(self.save_path,os.path.basename(__file__).split('.')[0],self.mpc_number,model_name,self.clip_label,filt,self.save_file_suffix,self.save_file_type)
+            fname="{}/{}_{}_{}_{}_{}{}.{}".format(self.save_path,os.path.basename(__file__).split('.')[0],self.file_identifier,model_name,self.clip_label,filt,self.save_file_suffix,self.save_file_type)
             print(fname)
             plt.savefig(fname, bbox_inches='tight')
 
@@ -692,12 +698,12 @@ class phase_fit():
         ax1.invert_yaxis()
         ax1.legend(prop={'size': 6})
 
-        ax1.set_title("{}_{}_{}_{}_{}".format(os.path.basename(__file__).split('.')[0],self.mpc_number,model_name,self.clip_label,filt))
+        ax1.set_title("{}_{}_{}_{}_{}".format(os.path.basename(__file__).split('.')[0],self.file_identifier,model_name,self.clip_label,filt))
         plt.tight_layout()
 
         if self.save_fig:
-            # fname="{}/{}_{}_{}_{}_{}_iter{}.png".format(self.save_path,os.path.basename(__file__).split('.')[0],self.mpc_number,model_name,self.clip_label,filt,self.save_file_suffix)
-            fname="{}/{}_{}_{}_{}_{}_iter{}.{}".format(self.save_path,os.path.basename(__file__).split('.')[0],self.mpc_number,model_name,self.clip_label,filt,self.save_file_suffix,self.save_file_type)
+            # fname="{}/{}_{}_{}_{}_{}_iter{}.png".format(self.save_path,os.path.basename(__file__).split('.')[0],self.file_identifier,model_name,self.clip_label,filt,self.save_file_suffix)
+            fname="{}/{}_{}_{}_{}_{}_iter{}.{}".format(self.save_path,os.path.basename(__file__).split('.')[0],self.file_identifier,model_name,self.clip_label,filt,self.save_file_suffix,self.save_file_type)
             print(fname)
             plt.savefig(fname, bbox_inches='tight')
 
@@ -1013,6 +1019,10 @@ class phase_fit():
                             OC_mean = np.mean(residuals)
                             OC_std = np.std(residuals)
                             OC_range = np.absolute(np.amax(residuals)-np.amin(residuals))
+
+                            print("std of residuals = {}".format(OC_std))
+                            print("RMS of residuals = {}".format(np.sqrt(np.mean(residuals**2))))
+                            # exit()
 
                             print("N_mag_err={}".format(N_mag_err))
                             if N_mag_err>N_data_fit:
