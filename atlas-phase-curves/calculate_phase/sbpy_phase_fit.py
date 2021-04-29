@@ -48,7 +48,8 @@ class phase_fit():
 
     def data_clip_diff(self,data,data_predict,diff=1):
         # cut outliers by diff (this function doesn't like astropy units, use np arrays)
-        clip_mask=(np.absolute(data_predict-data)>diff)
+        x=np.array(np.absolute(data_predict-data))
+        clip_mask=(x>diff)
         return clip_mask
 
     # define which clipping function to use
@@ -709,6 +710,8 @@ class phase_fit():
         ax1.set_title("{}_{}_{}_{}_{}".format(os.path.basename(__file__).split('.')[0],self.file_identifier,model_name,self.clip_label,filt))
         plt.tight_layout()
 
+        # ax1.set_ylim(14.5,8.3)
+
         if self.save_fig:
             # fname="{}/{}_{}_{}_{}_{}_iter{}.png".format(self.save_path,os.path.basename(__file__).split('.')[0],self.file_identifier,model_name,self.clip_label,filt,self.save_file_suffix)
             fname="{}/{}_{}_{}_{}_{}_iter{}.{}".format(self.save_path,os.path.basename(__file__).split('.')[0],self.file_identifier,model_name,self.clip_label,filt,self.save_file_suffix,self.save_file_type)
@@ -865,7 +868,7 @@ class phase_fit():
                 data_zero_err=data[data['merr']==0]
                 data=data[data['merr']!=0]
                 print("{} zero error".format(len(data)))
-                # drop measurements with small (or zero) uncertainty MOVE THIS TO A VARIABLE UP TOP!
+                # drop measurements with small (or zero) uncertainty
                 data_small_err=data[data['merr']<self.mag_err_small]
                 data=data[~(data['merr']<self.mag_err_small)]
                 print("{} small error".format(len(data)))
@@ -916,7 +919,7 @@ class phase_fit():
 
                         if self.mag_diff_flag:
                             # do a mag diff cut based on the initial assumed HG
-                            mask=self.data_clip_sigma(mag, model(alpha),self.mag_med_cut)
+                            mask=self.data_clip_diff(mag, model(alpha),self.mag_med_cut)
                             data_diff=data[mask]
                             data=data[~mask]
                             alpha = np.array(data['phase_angle']) * u.deg
