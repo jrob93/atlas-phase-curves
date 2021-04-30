@@ -34,8 +34,8 @@ class phase_fit():
     max_iters=30 # maximum number of attempts at fitting and cutting
     std=2 # standard deviation of the sigma data clip
     mag_err_threshold = 0.1 # limit for the error of "good" data, we record N_mag_err number of data points with error < mag_err_threshold
-    # mag_err_small = 0.01 # we discount observations with error less than this
-    mag_err_small = 0.005 # we discount observations with error less than this
+    mag_err_small = 0.01 # we discount observations with error less than this
+    # mag_err_small = 0.005 # we discount observations with error less than this
     gal_lat_cut=10 # galatic latitude cut in degrees
     mag_med_cut=2 # initial magnitude difference cut on initial HG model
 
