@@ -170,6 +170,30 @@ def atlas_SQL_query_orbid(cnx,orbital_elements_id,filter="all"):
 
     return df # should also return orbital_elements_id!!!
 
+def atlas_SQL_query_orbid_expname(cnx,orbital_elements_id,filter="all"):
+    """ Query that accept orb orbital_elements_id
+    Grabs the exposure name of each detection, useful for creating postage stamps"""
+
+    # based on dave's query that uses orbital_elements_id
+    sqlQuery_dave = u"""
+    SELECT d.expname,o.dec_deg,o.ra_deg,d.mjd, d.m,  d.dfitmag as merr, a.filter, o.observer_distance, o.heliocentric_distance, o.phase_angle, d.m - 5*log10(o.heliocentric_distance*o.observer_distance) as reduced_mag, o.apparent_mag, o.galactic_latitude
+    FROM
+        dophot_photometry d,
+        orbfit_positions o,
+        atlas_exposures a
+    WHERE
+        d.orbfit_postions_id = o.primaryId
+            AND a.expname = d.expname
+            AND o.orbital_elements_id = %(orbital_elements_id)s;
+    """ % locals()
+
+    # perform the query and store results as a dataframe
+    sqlQuery=sqlQuery_dave
+    print(sqlQuery)
+    df=read_sql_query(sqlQuery,cnx)
+
+    return df # should also return orbital_elements_id!!!
+
 def atlas_SQL_query_test(cnx,mpc_number=False,filter="all",name=False):
     """ Test grabbing orb id and the data in the same function """
 
