@@ -34,8 +34,8 @@ class phase_fit():
     max_iters=30 # maximum number of attempts at fitting and cutting
     std=2 # standard deviation of the sigma data clip
     mag_err_threshold = 0.1 # limit for the error of "good" data, we record N_mag_err number of data points with error < mag_err_threshold
-    mag_err_small = 0.01 # we discount observations with error less than this
-    # mag_err_small = 0.005 # we discount observations with error less than this
+    # mag_err_small = 0.01 # we discount observations with error less than this
+    mag_err_small = 0.005 # we discount observations with error less than this
     gal_lat_cut=10 # galatic latitude cut in degrees
     mag_med_cut=2 # initial magnitude difference cut on initial HG model
 
@@ -681,14 +681,14 @@ class phase_fit():
         ax1.errorbar(data_filt['phase_angle'],data_filt['reduced_mag'],data_filt['merr'], fmt='ko',label="data",zorder=0,markersize="2")
 
         # highlight any measurements with zero uncertainty
-        ax1.scatter(data_zero_err['phase_angle'],data_zero_err['reduced_mag'],edgecolor='r',facecolor="none",marker="^",s=50,label="{} mag_err=0".format(len(data_zero_err)))
-        ax1.scatter(data_small_err['phase_angle'],data_small_err['reduced_mag'],edgecolor='r',facecolor="none",marker="s",s=50,label="{} mag_err<{}".format(len(data_small_err),self.mag_err_small))
+        ax1.scatter(data_zero_err['phase_angle'],data_zero_err['reduced_mag'],edgecolor='r',facecolor="none",marker="^",s=50,label="{} mag_err = 0".format(len(data_zero_err)))
+        ax1.scatter(data_small_err['phase_angle'],data_small_err['reduced_mag'],edgecolor='r',facecolor="none",marker="s",s=50,label="{} mag_err < {}".format(len(data_small_err),self.mag_err_small))
         # highlight low galactic latitude
-        ax1.scatter(data_gal['phase_angle'],data_gal['reduced_mag'],edgecolor='r',facecolor="none",marker="o",s=50,label="{} galactic_latitude<{}".format(len(data_gal),self.gal_lat_cut))
+        ax1.scatter(data_gal['phase_angle'],data_gal['reduced_mag'],edgecolor='r',facecolor="none",marker="o",s=50,label="{} galactic_latitude < {} deg".format(len(data_gal),self.gal_lat_cut))
 
         if self.mag_diff_flag:
             #plot objects dropped in initial cut
-            ax1.scatter(data_diff['phase_angle'],data_diff['reduced_mag'],edgecolor='r',facecolor="none",marker="p",s=50,label="{} HG model diff>{}".format(len(data_diff),self.mag_med_cut))
+            ax1.scatter(data_diff['phase_angle'],data_diff['reduced_mag'],edgecolor='r',facecolor="none",marker="p",s=50,label="{} HG model diff > {}".format(len(data_diff),self.mag_med_cut))
 
         # plot iterative fits and cuts
         alpha_fit=np.linspace(np.amin(alpha),np.amax(alpha),100)
@@ -841,6 +841,10 @@ class phase_fit():
 
                 old_params=[999]*len(model_func.parameters)
 
+                # CAN WE DO ALL THE INITIAL CUTS ABOVE, ONCE PER FILTER?
+                # should depend only on the filter data, and is unchanged for each model...
+                # need to make sure each model starts in the right place
+
                 # store models/labels/cut data for plotting
                 label_iter_list=[]
                 model_iter_list=[]
@@ -864,25 +868,30 @@ class phase_fit():
                 # data=data[np.absolute(np.array(data["reduced_mag"]-np.nanmedian(data["reduced_mag"])))<mag_med_cut]
                 # print("{} {} mag diff".format(len(data),mag_med_cut))
 
+                # print(data[["reduced_mag","merr","galactic_latitude"]])
+                # print(data[data['merr']==0][["reduced_mag","merr","galactic_latitude"]])
+
                 # drop any measurements with zero uncertainty
                 data_zero_err=data[data['merr']==0]
                 data=data[data['merr']!=0]
-                print("{} zero error".format(len(data)))
+                print("{} after zero error cut".format(len(data)))
                 # drop measurements with small (or zero) uncertainty
                 data_small_err=data[data['merr']<self.mag_err_small]
                 data=data[~(data['merr']<self.mag_err_small)]
-                print("{} small error".format(len(data)))
+                print("{} after small error cut".format(len(data)))
 
                 # drop measurements near galactic plane
                 data_gal=data[np.absolute(data["galactic_latitude"])<self.gal_lat_cut]
                 data=data[~(np.absolute(data["galactic_latitude"])<self.gal_lat_cut)]
-                print("{} galactic plane".format(len(data)))
+                print("{} after galactic plane cut".format(len(data)))
 
                 # phase angle cut for linear fit
                 if model_name=="LinearPhaseFunc":
                     data=data[(data["phase_angle"]>self.phase_lin_min) & (data["phase_angle"]<self.phase_lin_max)]
 
                 print("{} data after cuts".format(len(data)))
+
+                # RECORD THE NUMBER OF DATA POINTS THAT HAVE BEEN CUT
 
                 if len(data)==0:
                     print("no data, cannot fit")
