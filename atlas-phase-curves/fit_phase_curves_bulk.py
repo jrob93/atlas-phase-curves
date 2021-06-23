@@ -43,7 +43,7 @@ mpc_number_list=df['mpc_number'].astype(int)
 print(mpc_number_list)
 print(len(mpc_number_list))
 
-mpc_number_list=mpc_number_list[:100]
+#mpc_number_list=mpc_number_list[:100]
 
 mpc_number_list=list(mpc_number_list)
 print(mpc_number_list)

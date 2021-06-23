@@ -76,7 +76,7 @@ mpc_numbers=mpc_numbers_5_2_21
 
 ratio_list=[]
 
-# mpc_numbers=[1291]
+mpc_numbers=[1291]
 
 # wipe the log file
 with open("sbpy_phase_fit.log","w") as f:
@@ -93,7 +93,7 @@ for mpc_number in mpc_numbers:
     name=False
 
     fit = sbpy_phase_fit.phase_fit(mpc_number=mpc_number,name=name,
-    push_fit_flag=False,plot_fig_flag=False,save_fig_flag=False,
+    push_fit_flag=True,plot_fig_flag=False,save_fig_flag=False,
     # push_fit_flag=True,plot_fig_flag=True,save_fig_flag=True,
     # filter_list=["o"],
     # save_path="results_analysis/calculate_phase_figs",
