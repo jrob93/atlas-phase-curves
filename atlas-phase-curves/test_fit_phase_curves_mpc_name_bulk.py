@@ -37,7 +37,8 @@ def phase_fit_func_name(name):
 
 # mpc_number_list=mpc_number_list[:100]
 
-mpc_number_list=[1291,2478,33066,112357]
+#mpc_number_list=[1291,2478,33066,112357]
+mpc_number_list=[1291]
 print(len(mpc_number_list))
 
 # make the name list
