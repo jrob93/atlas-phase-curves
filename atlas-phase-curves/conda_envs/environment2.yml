@@ -1,0 +1,17 @@
+name: py37_mac
+channels:
+  - defaults
+dependencies:
+  - conda
+  - python=3.7
+  - python.app
+  - numpy
+  - pandas
+  - matplotlib
+  - git
+  - astropy
+  - ccdproc
+  - lxml
+  - jupyter
+prefix: /Users/jrobinson/miniconda3
+
