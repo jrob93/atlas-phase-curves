@@ -1,4 +1,7 @@
 *.png
 *.csv
+*.log
+*.out
+*.dat
 **/__pycache__
 tmp

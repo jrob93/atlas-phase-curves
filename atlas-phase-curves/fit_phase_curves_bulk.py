@@ -43,13 +43,13 @@ mpc_number_list=df['mpc_number'].astype(int)
 print(mpc_number_list)
 print(len(mpc_number_list))
 
-#mpc_number_list=mpc_number_list[:100]
+# mpc_number_list=mpc_number_list[:8]
 
 mpc_number_list=list(mpc_number_list)
 print(mpc_number_list)
 print(len(mpc_number_list))
 
-#exit()
+# exit()
 
 # print("run in serial")
 # t_start=time.time()
@@ -112,3 +112,11 @@ while len(mpc_number_list)>0:
     of.flush()
 
 of.close()
+
+# add clean up tasks?
+
+cmd="mv sbpy_phase_fit.log sbpy_phase_fit_{}-{}-{}.log".format(today.day,today.month,today.year)
+subprocess.Popen(cmd,shell=True)
+print(cmd)
+
+# download a csv of all the fits
