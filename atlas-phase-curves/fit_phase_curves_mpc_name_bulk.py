@@ -19,7 +19,8 @@ from astropy.time import Time
 def phase_fit_func_mpc(mpc_number,end_date):
     with open("tmp", "w") as f:
         sys.stdout = f # redirect output to file (or just suppress? https://stackoverflow.com/questions/8447185/to-prevent-a-function-from-printing-in-the-batch-console-in-python)
-        fit = sbpy_phase_fit.phase_fit(mpc_number=mpc_number,end_date=end_date,push_fit_flag=True,hide_warning_flag=False)
+        # fit = sbpy_phase_fit.phase_fit(mpc_number=mpc_number,end_date=end_date,push_fit_flag=True,hide_warning_flag=False)
+        fit = sbpy_phase_fit.phase_fit(mpc_number=mpc_number,end_date=end_date,push_fit_flag=True,hide_warning_flag=False,mag_diff_flag=True)
         check=fit.calculate()
         sys.stdout = sys.__stdout__ # need to reset the redirect!
     # fit = sbpy_phase_fit.phase_fit(mpc_number=mpc_number,push_fit_flag=True,hide_warning_flag=True)
