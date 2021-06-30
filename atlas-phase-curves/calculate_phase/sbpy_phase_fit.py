@@ -190,24 +190,32 @@ class phase_fit():
         # data_all_filt=atlas_SQL_query(cnx=cnx,mpc_number=mpc_num)
         data_all_filt=atlas_SQL_query_orbid(cnx,orbid)
 
-        print("data before date cut = {}".format(len(data_all_filt)))
+        N_data1 = len(data_all_filt)
+        print("data before date cut = {}".format(N_data1))
         # cut by date range. Note that different filters may have different dates/epochs!
         if t_start:
             data_all_filt=data_all_filt[data_all_filt['mjd']>float(t_start)]
         if t_end:
-            print(data_all_filt[~(data_all_filt['mjd']<float(t_end))])
+            # print(data_all_filt[~(data_all_filt['mjd']<float(t_end))])
             data_all_filt=data_all_filt[data_all_filt['mjd']<float(t_end)]
-            print(data_all_filt)
+            # print(data_all_filt)
         # else: # if t_end is not defined default to the hard cap for date
         #     data_all_filt=data_all_filt[data_all_filt['mjd']<self.date_hard_cap]
-        print("data after date cut = {}".format(len(data_all_filt)))
 
-        # exit()
+        # Number of data points outside of date range
+        N_data2 = len(data_all_filt)
+        print("data after date cut = {}".format(N_data2))
+        N_data_date = N_data1-N_data2
+        print("CUT N_data_date = {}".format(N_data_date))
 
-        # DROP ALL ROWS WITH A NAN? !!!
-        print("data before nan cut = {}".format(len(data_all_filt)))
+        # DROP ALL ROWS WITH A NAN
+        N_data3 = len(data_all_filt)
+        print("data before nan cut = {}".format(N_data3))
         data_all_filt=data_all_filt.dropna()
-        print("data after nan cut = {}".format(len(data_all_filt)))
+        N_data4 = len(data_all_filt)
+        print("data after nan cut = {}".format(N_data4))
+        N_data_nan = N_data3 - N_data4
+        print("CUT N_data_nan = {}".format(N_data_nan))
 
         return data_all_filt
 
@@ -815,11 +823,8 @@ class phase_fit():
     def calculate(self):
         # calculate the phase curves
 
-        # get the object observation data
-        # data_all_filt=self.get_obj_data(self.cnx1,self.mpc_number,self.start_date,self.end_date)
+        # get the object observation data, cutting on date range and dropping rows with nan
         data_all_filt=self.get_obj_data(self.cnx1,self.orbital_elements_id,self.start_date,self.end_date)
-        # print(data_all_filt)
-        print(data_all_filt[np.isnan(data_all_filt["mjd"])])
 
         # get the object metadata and combine with the phase fit dataframe structure
         # df_obj=self.get_obj_metadata(self.cnx1,self.mpc_number)
@@ -932,8 +937,11 @@ class phase_fit():
             # phase angle cut for linear fit
             if "LinearPhaseFunc" in self.selected_models.items():
                 mask_alpha = ((data_filt["phase_angle"]>self.phase_lin_min) & (data_filt["phase_angle"]<self.phase_lin_max))
-                # data_phase = data_filt[~mask]
+                data_lin_phase = data_filt[~mask]
                 data_filt=data_filt[mask_alpha]
+                N_alpha_phase_lin = len(data_lin_phase)
+            else:
+                N_alpha_phase_lin = 0
 
             print("{} data after cuts".format(len(data_filt)))
 
@@ -941,9 +949,9 @@ class phase_fit():
             N_data_zero_err = len(data_zero_err)
             N_data_small_err = len(data_small_err)
             N_data_gal = len(data_gal)
-            N_data_cut = N_data_zero_err + N_data_small_err + N_data_gal
-            print("data_zero_err = {}\ndata_small_err = {}\ndata_gal = {}".format(
-            N_data_zero_err,N_data_small_err,N_data_gal))
+            N_data_cut = N_data_zero_err + N_data_small_err + N_data_gal + N_alpha_phase_lin
+            print("data_zero_err = {}\ndata_small_err = {}\ndata_gal = {}\nN_alpha_phase_lin".format(
+            N_data_zero_err,N_data_small_err,N_data_gal,N_alpha_phase_lin))
             print("N_data_cut = {}".format(N_data_cut))
 
             if len(data_filt)==0:
