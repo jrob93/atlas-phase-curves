@@ -872,7 +872,7 @@ class phase_fit():
             # H_abs_mag=float(df_HG.iloc[0]['H_abs_mag'])
             G_slope=float(df_obj.iloc[0]['G_slope'])
             H_abs_mag=float(df_obj.iloc[0]['H_abs_mag'])
-            print("G_slope = {}\nH_abs_mag = {}".format(G_slope,H_abs_mag))
+            print("filt = {}\nG_slope = {}\nH_abs_mag = {}".format(filt,G_slope,H_abs_mag))
 
             # do filter correction from V band (Heinze et al. 2020) - see also Erasmus et al 2020 for the c-o colours of S and C types (0.388 and 0.249 respectively)
             if filt=="o":
@@ -913,31 +913,37 @@ class phase_fit():
             print("{} starting data".format(len(data_filt)))
 
             # drop any measurements with zero uncertainty
-            data_zero_err=data_filt[data_filt['merr']==0]
-            data_filt=data_filt[data_filt['merr']!=0]
+            mask_zero = data_filt['merr']==0
+            data_zero_err=data_filt[mask_zero]
+            data_filt=data_filt[~mask_zero]
             print("{} after zero error cut".format(len(data_filt)))
             # drop measurements with small (or zero) uncertainty
-            data_small_err=data_filt[data_filt['merr']<self.mag_err_small]
-            data_filt=data_filt[~(data_filt['merr']<self.mag_err_small)]
+            mask_err = data_filt['merr']<self.mag_err_small
+            data_small_err=data_filt[mask_err]
+            data_filt=data_filt[~mask_err]
             print("{} after small error cut".format(len(data_filt)))
 
             # drop measurements near galactic plane
-            data_gal=data_filt[np.absolute(data_filt["galactic_latitude"])<self.gal_lat_cut]
-            data_filt=data_filt[~(np.absolute(data_filt["galactic_latitude"])<self.gal_lat_cut)]
+            mask_gal = np.absolute(data_filt["galactic_latitude"])<self.gal_lat_cut
+            data_gal=data_filt[mask_gal]
+            data_filt=data_filt[~mask_gal]
             print("{} after galactic plane cut".format(len(data_filt)))
 
             # phase angle cut for linear fit
             if "LinearPhaseFunc" in self.selected_models.items():
-                mask = ((data_filt["phase_angle"]>self.phase_lin_min) & (data_filt["phase_angle"]<self.phase_lin_max))
+                mask_alpha = ((data_filt["phase_angle"]>self.phase_lin_min) & (data_filt["phase_angle"]<self.phase_lin_max))
                 # data_phase = data_filt[~mask]
-                data_filt=data_filt[mask]
+                data_filt=data_filt[mask_alpha]
 
             print("{} data after cuts".format(len(data_filt)))
 
             # RECORD THE NUMBER OF DATA POINTS THAT HAVE BEEN CUT
-            N_data_cut = len(data_zero_err) + len(data_small_err) + len(data_gal)
+            N_data_zero_err = len(data_zero_err)
+            N_data_small_err = len(data_small_err)
+            N_data_gal = len(data_gal)
+            N_data_cut = N_data_zero_err + N_data_small_err + N_data_gal
             print("data_zero_err = {}\ndata_small_err = {}\ndata_gal = {}".format(
-            len(data_zero_err),len(data_small_err),len(data_gal)))
+            N_data_zero_err,N_data_small_err,N_data_gal))
             print("N_data_cut = {}".format(N_data_cut))
 
             if len(data_filt)==0:
