@@ -910,9 +910,14 @@ class phase_fit():
 
             # select all data from a certain filter
             data_filt=data_all_filt[data_all_filt['filter']==filt]
-            # print(data_filt)
-            detection_count_filt=len(data_filt) # Record number of detections BEFORE cuts are made
+
+            # Record number of detections in the filter AFTER nan and date cuts but BEFORE other cuts are made
+            # This updates the detection_count value from rockatlas
+            detection_count_filt=len(data_filt)
             df_obj["detection_count_{}".format(filt)]=detection_count_filt # update the number of detections in the df
+
+            # Also update the rockatlas value of phase angle range, before fits are done
+            df_obj["phase_angle_range_{}".format(filt)] = np.amax(data_filt["phase_angle"]) - np.amin(data_filt["phase_angle"])
 
             # cut starting data for this filter
             print("{} starting data".format(len(data_filt)))
@@ -1131,8 +1136,6 @@ class phase_fit():
                             N_nights=len(np.unique(np.array(data["mjd"]).astype(int)))
                             alpha_min=np.amin(alpha).value
                             alpha_max=np.amax(alpha).value
-                            phase_angle_range=alpha_max-alpha_min
-                            # N_alpha_low=sum(alpha<low_alpha_cut)
                             N_alpha_low=len(alpha[alpha<self.low_alpha_cut])
                             N_iter=k
                             nfev=self.fitter.fit_info['nfev']
@@ -1193,7 +1196,6 @@ class phase_fit():
                             df_obj["phase_curve_N_fit{}_{}".format(ms,filt)]=N_data_fit
                             df_obj["phase_curve_alpha_min{}_{}".format(ms,filt)]=alpha_min
                             df_obj["phase_curve_alpha_max{}_{}".format(ms,filt)]=alpha_max
-                            df_obj["phase_angle_range_{}".format(filt)]=phase_angle_range
                             df_obj["phase_curve_N_alpha_low{}_{}".format(ms,filt)]=N_alpha_low
                             df_obj["phase_curve_N_nights{}_{}".format(ms,filt)]=N_nights
                             df_obj["phase_curve_N_iter{}_{}".format(ms,filt)]=N_iter
