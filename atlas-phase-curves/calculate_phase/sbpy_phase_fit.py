@@ -909,8 +909,40 @@ class phase_fit():
             detection_count_filt=len(data_filt) # Record number of detections BEFORE cuts are made
             df_obj["detection_count_{}".format(filt)]=detection_count_filt # update the number of detections in the df
 
-            # print(detection_count_filt)
-            # continue
+            # cut starting data for this filter
+            print("{} starting data".format(len(data_filt)))
+
+            # drop any measurements with zero uncertainty
+            data_zero_err=data_filt[data_filt['merr']==0]
+            data_filt=data_filt[data_filt['merr']!=0]
+            print("{} after zero error cut".format(len(data_filt)))
+            # drop measurements with small (or zero) uncertainty
+            data_small_err=data_filt[data_filt['merr']<self.mag_err_small]
+            data_filt=data_filt[~(data_filt['merr']<self.mag_err_small)]
+            print("{} after small error cut".format(len(data_filt)))
+
+            # drop measurements near galactic plane
+            data_gal=data_filt[np.absolute(data_filt["galactic_latitude"])<self.gal_lat_cut]
+            data_filt=data_filt[~(np.absolute(data_filt["galactic_latitude"])<self.gal_lat_cut)]
+            print("{} after galactic plane cut".format(len(data_filt)))
+
+            # phase angle cut for linear fit
+            if "LinearPhaseFunc" in self.selected_models.items():
+                mask = ((data_filt["phase_angle"]>self.phase_lin_min) & (data_filt["phase_angle"]<self.phase_lin_max))
+                # data_phase = data_filt[~mask]
+                data_filt=data_filt[mask]
+
+            print("{} data after cuts".format(len(data_filt)))
+
+            # RECORD THE NUMBER OF DATA POINTS THAT HAVE BEEN CUT
+            N_data_cut = len(data_zero_err) + len(data_small_err) + len(data_gal)
+            print("data_zero_err = {}\ndata_small_err = {}\ndata_gal = {}".format(
+            len(data_zero_err),len(data_small_err),len(data_gal)))
+            print("N_data_cut = {}".format(N_data_cut))
+
+            if len(data_filt)==0:
+                print("no data, cannot fit")
+                break
 
             # iterate over all models
             # for i,model_name in enumerate(self.model_names):
@@ -944,45 +976,6 @@ class phase_fit():
                 # initialise the data that we will iteratively fit and cut
                 data=data_filt
                 data=data.sort_values("phase_angle") # ensure that the dataframe is in order for plotting
-
-                # print("DATA WITH NAN")
-                # print(data[data.isna().any(axis=1)])
-
-                print("{} starting data".format(len(data)))
-
-                # # do an initial mag diff cut to remove extreme outliers
-                # mag_med_cut=2
-                # data=data[np.absolute(np.array(data["reduced_mag"]-np.nanmedian(data["reduced_mag"])))<mag_med_cut]
-                # print("{} {} mag diff".format(len(data),mag_med_cut))
-
-                # print(data[["reduced_mag","merr","galactic_latitude"]])
-                # print(data[data['merr']==0][["reduced_mag","merr","galactic_latitude"]])
-
-                # drop any measurements with zero uncertainty
-                data_zero_err=data[data['merr']==0]
-                data=data[data['merr']!=0]
-                print("{} after zero error cut".format(len(data)))
-                # drop measurements with small (or zero) uncertainty
-                data_small_err=data[data['merr']<self.mag_err_small]
-                data=data[~(data['merr']<self.mag_err_small)]
-                print("{} after small error cut".format(len(data)))
-
-                # drop measurements near galactic plane
-                data_gal=data[np.absolute(data["galactic_latitude"])<self.gal_lat_cut]
-                data=data[~(np.absolute(data["galactic_latitude"])<self.gal_lat_cut)]
-                print("{} after galactic plane cut".format(len(data)))
-
-                # phase angle cut for linear fit
-                if model_name=="LinearPhaseFunc":
-                    data=data[(data["phase_angle"]>self.phase_lin_min) & (data["phase_angle"]<self.phase_lin_max)]
-
-                print("{} data after cuts".format(len(data)))
-
-                # RECORD THE NUMBER OF DATA POINTS THAT HAVE BEEN CUT
-
-                if len(data)==0:
-                    print("no data, cannot fit")
-                    break
 
                 # iteratively fit and cut data
                 k=0
