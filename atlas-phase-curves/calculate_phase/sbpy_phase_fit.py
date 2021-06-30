@@ -913,7 +913,8 @@ class phase_fit():
 
             # Record number of detections in the filter AFTER nan and date cuts but BEFORE other cuts are made
             # This updates the detection_count value from rockatlas
-            detection_count_filt=len(data_filt)
+            N_data_start = len(data_filt)
+            detection_count_filt=N_data_start
             df_obj["detection_count_{}".format(filt)]=detection_count_filt # update the number of detections in the df
 
             # Also update the rockatlas value of phase angle range, before fits are done
@@ -939,23 +940,18 @@ class phase_fit():
             data_filt=data_filt[~mask_gal]
             print("{} after galactic plane cut".format(len(data_filt)))
 
-            # phase angle cut for linear fit, apply the cut when using the model
-            if "LinearPhaseFunc" in self.selected_models:
-                mask_alpha = ((data_filt["phase_angle"]>=self.phase_lin_min) & (data_filt["phase_angle"]<=self.phase_lin_max))
-                data_lin_phase = data_filt[~mask_alpha]
-                N_alpha_phase_lin = len(data_lin_phase)
-            else:
-                N_alpha_phase_lin = 0
-
             print("{} data after cuts".format(len(data_filt)))
 
             # RECORD THE NUMBER OF DATA POINTS THAT HAVE BEEN CUT
             N_data_zero_err = len(data_zero_err)
             N_data_small_err = len(data_small_err)
             N_data_gal = len(data_gal)
-            N_data_cut = N_data_zero_err + N_data_small_err + N_data_gal + N_alpha_phase_lin
-            print("CUT data_zero_err = {}\nCUT data_small_err = {}\nCUT data_gal = {}\nCUT N_alpha_phase_lin = {}".format(
-            N_data_zero_err,N_data_small_err,N_data_gal,N_alpha_phase_lin))
+            # N_data_cut = N_data_zero_err + N_data_small_err + N_data_gal + N_alpha_phase_lin
+            # print("CUT data_zero_err = {}\nCUT data_small_err = {}\nCUT data_gal = {}\nCUT N_alpha_phase_lin = {}".format(
+            # N_data_zero_err,N_data_small_err,N_data_gal,N_alpha_phase_lin))
+            N_data_cut = N_data_zero_err + N_data_small_err + N_data_gal
+            print("CUT data_zero_err = {}\nCUT data_small_err = {}\nCUT data_gal = {}".format(
+            N_data_zero_err,N_data_small_err,N_data_gal))
             print("TOTAL CUT N_data_cut = {}".format(N_data_cut))
 
             # if no data remains after cuts, then nothing can be fit
@@ -969,7 +965,12 @@ class phase_fit():
 
                 # cut on phase angle range only if using the Linear phase function
                 if model_name=="LinearPhaseFunc":
+                    mask_alpha = ((data_filt["phase_angle"]>=self.phase_lin_min) & (data_filt["phase_angle"]<=self.phase_lin_max))
+                    N_alpha_lin=len(data_filt[~mask_alpha])
                     data_filt=data_filt[mask_alpha]
+                    print("CUT N_alpha_lin = {}".format(N_alpha_lin))
+                else:
+                    N_alpha_lin=0
 
                 print(model_name,model_values)
 
@@ -1141,6 +1142,20 @@ class phase_fit():
                             nfev=self.fitter.fit_info['nfev']
                             ier=self.fitter.fit_info['ierr']
                             N_mag_err=len(mag_err[np.array(mag_err)<self.mag_err_threshold]) # leq?
+
+                            # Record the number of data points cut during the fitting process
+                            # Note that data_filt will have been cut by phase angle when the Linear function is fit
+                            N_data_cut = len(data_filt) - N_data_fit
+                            print("N_data_fit = {}\nN_data_cut = {}".format(N_data_fit,N_data_cut))
+
+                            # check number of data points cut and fit all add up to starting data
+                            N_data_tot = N_data_zero_err + N_data_small_err + N_data_gal + N_alpha_lin + N_data_cut + N_data_fit
+                            print(N_data_zero_err,N_data_small_err,N_data_gal,N_alpha_lin,N_data_cut,N_data_fit)
+                            print("N_data_tot = {}\nN_data_start = {}".format(N_data_tot,N_data_start))
+
+                            if N_data_tot!=N_data_start:
+                                print("Error, number of data points doesn't add up")
+                                logging.warning("{} - {} - {} - {} - N_data_tot!=N_data_start".format(self.mpc_number,self.name,model_name,filt))
 
                             # calculate the residual properties
                             residuals = mag - model(alpha)
