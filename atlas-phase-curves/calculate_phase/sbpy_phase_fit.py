@@ -839,8 +839,8 @@ class phase_fit():
         # print(df_obj.iloc[0].to_string)
         # print(df_obj['phase_curve_H_2M10_o'])
 
-        # update the detection_count
-        df_obj["detection_count"]=len(data_all_filt) # note that atlas_objects may not have up to date detection count...
+        # update the detection_count, dropping nans and outside date range
+        df_obj["detection_count"]=len(data_all_filt) # note that atlas_objects may not have up to date detection count, call update_atlas_objects
 
         # set the mpc_number and name from df_obj !!!
         self.mpc_number=df_obj.iloc[0]['mpc_number']
@@ -934,11 +934,10 @@ class phase_fit():
             data_filt=data_filt[~mask_gal]
             print("{} after galactic plane cut".format(len(data_filt)))
 
-            # phase angle cut for linear fit
-            if "LinearPhaseFunc" in self.selected_models.items():
-                mask_alpha = ((data_filt["phase_angle"]>self.phase_lin_min) & (data_filt["phase_angle"]<self.phase_lin_max))
-                data_lin_phase = data_filt[~mask]
-                data_filt=data_filt[mask_alpha]
+            # phase angle cut for linear fit, apply the cut when using the model
+            if "LinearPhaseFunc" in self.selected_models:
+                mask_alpha = ((data_filt["phase_angle"]>=self.phase_lin_min) & (data_filt["phase_angle"]<=self.phase_lin_max))
+                data_lin_phase = data_filt[~mask_alpha]
                 N_alpha_phase_lin = len(data_lin_phase)
             else:
                 N_alpha_phase_lin = 0
@@ -950,10 +949,11 @@ class phase_fit():
             N_data_small_err = len(data_small_err)
             N_data_gal = len(data_gal)
             N_data_cut = N_data_zero_err + N_data_small_err + N_data_gal + N_alpha_phase_lin
-            print("data_zero_err = {}\ndata_small_err = {}\ndata_gal = {}\nN_alpha_phase_lin".format(
+            print("CUT data_zero_err = {}\nCUT data_small_err = {}\nCUT data_gal = {}\nCUT N_alpha_phase_lin = {}".format(
             N_data_zero_err,N_data_small_err,N_data_gal,N_alpha_phase_lin))
-            print("N_data_cut = {}".format(N_data_cut))
+            print("TOTAL CUT N_data_cut = {}".format(N_data_cut))
 
+            # if no data remains after cuts, then nothing can be fit
             if len(data_filt)==0:
                 print("no data, cannot fit")
                 break
@@ -961,6 +961,10 @@ class phase_fit():
             # iterate over all models
             # for i,model_name in enumerate(self.model_names):
             for model_name,model_values in self.selected_models.items():
+
+                # cut on phase angle range only if using the Linear phase function
+                if model_name=="LinearPhaseFunc":
+                    data_filt=data_filt[mask_alpha]
 
                 print(model_name,model_values)
 
