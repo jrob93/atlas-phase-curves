@@ -90,7 +90,7 @@ class phase_fit():
         save_file_type="png",
         push_fit_flag=False,plot_fig_flag=False,show_fig_flag=False,save_fig_flag=False,hide_warning_flag=False,
         start_date=False,end_date=False,
-        mag_diff_flag=False,
+        mag_diff_flag=False, # DEFAULT THIS TO BE TRUE?
         H_abs_mag_o=False,H_abs_mag_c=False,
         model_list=["HG", "HG1G2", "HG12", "HG12_Pen16"], # ADD LinearPhaseFunc here as default?
         filter_list=["o","c"],
@@ -785,7 +785,20 @@ class phase_fit():
                             OC_std = np.std(residuals)
                             OC_range = np.absolute(np.amax(residuals)-np.amin(residuals))
 
-                            # CHECK RESIDUALS FOR INDIVIDULA EPOCHS HERE?
+                            # CHECK RESIDUALS FOR INDIVIDUAL EPOCHS HERE?
+                            import matplotlib.pyplot as plt
+                            import matplotlib.gridspec as gridspec
+
+                            fig = plt.figure()
+                            gs = gridspec.GridSpec(1,1)
+                            ax1 = plt.subplot(gs[0,0])
+
+                            ax1.scatter(data["mjd"],residuals)
+                            ax1.set_xlabel("mjd")
+                            ax1.set_ylabel("O-C")
+                            plt.show()
+
+                            exit()
 
                             # check for errors
                             if N_mag_err>N_data_fit:
