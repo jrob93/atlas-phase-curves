@@ -790,12 +790,93 @@ class phase_fit():
                             import matplotlib.gridspec as gridspec
 
                             fig = plt.figure()
-                            gs = gridspec.GridSpec(1,1)
+                            gs = gridspec.GridSpec(3,1)
                             ax1 = plt.subplot(gs[0,0])
+                            ax2 = plt.subplot(gs[1,0])
+                            ax3 = plt.subplot(gs[2,0])
 
                             ax1.scatter(data["mjd"],residuals)
                             ax1.set_xlabel("mjd")
                             ax1.set_ylabel("O-C")
+
+                            # find time difference between each detection
+                            # print(data["mjd"])
+                            # ascending order sort on date
+                            sort_mask = np.argsort(data["mjd"])
+                            mjd = np.array(data["mjd"])[sort_mask]
+                            residuals = np.array(residuals)[sort_mask]
+                            alpha = np.array(data["phase_angle"])[sort_mask]
+                            mag = np.array(data["reduced_mag"])[sort_mask]
+                            mag_err = np.array(data["merr"])[sort_mask]
+
+                            # print(mjd - data["mjd"])
+                            # print(mjd,len(mjd))
+                            delta_mjd = np.diff(mjd)
+                            # print(delta_mjd,len(delta_mjd))
+                            ax2.hist(delta_mjd,bins=200,log="True")
+                            ax2.set_xlabel("delta_mjd")
+                            ax2.set_ylabel("n")
+
+                            # determine a sensible time range to define an epoch
+                            # dm_std = np.std(delta_mjd)
+                            # print(delta_mjd[delta_mjd>(np.median(delta_mjd)*10.0*dm_std)])
+
+                            # delta_epoch = 365.0/2.0
+                            delta_epoch = 100.0
+                            # delta_epoch = 175.0
+                            # delta_epoch = 148.0
+                            # delta_epoch = 365.0/3.0
+                            ax2.axvline(delta_epoch,ls=":",c="r")
+                            mask = delta_mjd  > delta_epoch
+                            epoch_start = mjd[1:][mask]
+                            epoch_end = mjd[:-1][mask]
+
+                            print(epoch_start)
+                            print(epoch_end)
+
+                            # add the very first and last dates
+                            epoch_start = np.insert(epoch_start,0,np.amin(mjd))
+                            epoch_end = np.insert(epoch_end,len(epoch_end),np.amax(mjd))
+
+                            print(epoch_start)
+                            print(epoch_end)
+                            N_data_epoch = 8
+
+                            for i,m1,m2 in zip(range(len(epoch_start)),epoch_start,epoch_end):
+                                N_days_epoch = m2-m1
+                                print(m1,m2,N_days_epoch)
+                                date_mask = ((mjd>=m1) & (mjd<=m2))
+
+                                if len(mjd[date_mask])<N_data_epoch:
+                                    continue
+
+                                ax1.axvline(m1,ls=":",c="r")#,label="start")
+                                ax1.axvline(m2,ls="--",c="r")#,label="end")
+                                ax1.scatter(mjd[date_mask],residuals[date_mask],s=1)
+
+                                res_med = np.median(residuals[date_mask])
+                                ax1.hlines(res_med,m1,m2,color="r")
+
+                                # try fit model to epoch data
+                                _alpha = np.array(alpha[date_mask]) * u.deg
+                                _mag = np.array(mag[date_mask]) * u.mag
+                                _mag_err = np.array(mag_err[date_mask]) * u.mag
+
+                                ax3.scatter(_alpha,_mag,c="C{}".format(i+1))
+                                model = self.fitter(model_func, _alpha, _mag, weights=1.0/np.array(_mag_err))
+                                ax3.plot(_alpha,model(_alpha),c="C{}".format(i+1))
+
+                            ax1.axhline(0,c="k")
+
+                            ax3.invert_yaxis()
+
+                            # # plot years
+                            # yrs = np.arange(epoch_end[0],epoch_end[-1],365)
+                            # for y in yrs:
+                            #     ax1.axvline(y,c="k")
+
+                            # ax1.legend()
+
                             plt.show()
 
                             exit()
