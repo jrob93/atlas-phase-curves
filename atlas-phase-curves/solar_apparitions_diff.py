@@ -12,9 +12,8 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
-from scipy.optimize import curve_fit
-import scipy.signal
-from astropy.timeseries import LombScargle
+from astropy.time import Time
+from astroquery.jplhorizons import Horizons
 
 parser = OptionParser()
 parser.add_option( "-n", "--mpc-number", dest="mpc_number", help="mpc_number", metavar="MPC_NUMBER" ) # mpc number of object to fit
@@ -35,13 +34,9 @@ if options.filter:
 else:
     filter=False
 
-def tan_func(x, A, P, phi):
-    return A*np.tan((x/P)+phi) + 180.0
-def sin_func(x, A, P, phi, B):
-    return (A*np.sin((x/P)+phi))+B
-def saw_func(x, A, fi, offset, width, phi):
-    # width is from scipy docs at https://www.pydoc.io/pypi/scipy-1.0.1/autoapi/signal/waveforms/index.html#signal.waveforms.sawtooth
-    return (A * scipy.signal.sawtooth((x / fi)+phi, width)) + offset
+elong_mod = 360
+sol_elong_diff = -10 # difference required for an epoch, should be minimised! (e.g. 76820)
+mjd_jd = 2400000.5 # conversion from MJD to JD
 
 # connect to database
 cnx=atlas_database_connection.database_connection().connect()
@@ -71,100 +66,75 @@ N_merr = len(df_data[df_data["merr"]<err_cut])
 print("N merr<{} : {}".format(err_cut,N_merr))
 
 fig = plt.figure()
-gs = gridspec.GridSpec(2, 2)
+gs = gridspec.GridSpec(2, 1)
 ax1 = plt.subplot(gs[0,0])
-ax2 = plt.subplot(gs[0,1])
-ax4 = plt.subplot(gs[1,1])
-ax5 = plt.subplot(gs[1,0])
+ax2 = plt.subplot(gs[1,0])
 
 # plot the phase angle/reduced mag data
 ax1.invert_yaxis()
-ax1.errorbar(df_data['phase_angle'],df_data['reduced_mag'],df_data['merr'], fmt='ko',label="data",zorder=0,markersize="2")
-ax1.legend()
+ax1.errorbar(df_data['phase_angle'],df_data['reduced_mag'],df_data['merr'], fmt='ko',label="mag err",zorder=0,markersize=0)
 ax1.set_xlabel("phase_angle")
 ax1.set_ylabel("reduced_mag")
 
 # plot reduced mag as a function of mjd date
-ax5.scatter(df_data['mjd'],df_data['reduced_mag'])
-ax5.set_xlabel("mjd")
-ax5.set_ylabel("reduced_mag")
-ax5.invert_yaxis()
+# ax2.scatter(df_data['mjd'],df_data['reduced_mag'])
+ax2.set_xlabel("mjd")
+ax2.set_ylabel("reduced_mag")
+ax2.invert_yaxis()
 
 # plot the solar elongation retrieved from rockAtlas
 # N.B. rockAtlas angle cycles from -180 to 180 deg, use mod to get 0 to 360
-ax3 = ax5.twinx()
+# or abs to force 0 -> 180
+
+df_data=df_data.sort_values(['mjd'])
+xdata=np.array(df_data["mjd"])
+
+# ydata=np.array(df_data["sun_obs_target_angle"])
+# lab="solar elongation"
+
+ydata=np.array(df_data["sun_obs_target_angle"])%elong_mod
+lab="solar elongation % 360"
+
+# ydata=np.absolute(np.array(df_data["sun_obs_target_angle"]))
+# lab="abs(solar elongation)"
+
+ax3 = ax2.twinx()
 s=3
-# ax3.scatter(df_data['mjd'],df_data['sun_obs_target_angle'],c="C1",label="solar elongation",s=s)
-ax3.scatter(df_data['mjd'],df_data['sun_obs_target_angle']%360,c="C1",label="solar elongation",s=s)
-# ax3.plot(df_data['mjd'],df_data['sun_obs_target_angle']%360,c="C1",label="solar elongation")
-ax3.scatter(df_data['mjd'],df_data['phase_angle'],c="C2",label="phase angle",s=s)
+ax3.scatter(xdata,ydata,s=s,c="k",label=lab)
+ax3.scatter(df_data['mjd'],df_data['phase_angle'],s=s,c="gray",label="phase angle")
 ax3.set_ylabel("angle")
 
-# select data to fit
-# df_data=df_data[(df_data["mjd"]>58000) & (df_data["mjd"]<58400)]
-xdata=df_data["mjd"]
-# ydata=df_data["sun_obs_target_angle"]
-ydata=df_data["sun_obs_target_angle"]%360
+# Get the JPL Horizons elongation
+if name:
+    obj_id = name
+else:
+    obj_id = mpc_number
+loc = "T05"
+t1=Time(int(np.amin(df_data["mjd"])),format="mjd")
+t2=Time(int(np.amax(df_data["mjd"])),format="mjd")
+epoch_list = {'start':t1.iso, 'stop':t2.iso, 'step':'1d'} # a range of epochs in Horizons format is FAST!
+obj = Horizons(id=obj_id, location=loc, epochs=epoch_list)
+eph = obj.ephemerides()
+df_eph = eph.to_pandas()
+df_eph["mjd"] = df_eph["datetime_jd"] - mjd_jd
+# plot the exact elongation from JPL
+ax3.plot(df_eph["mjd"],df_eph["elong"],c="r",alpha=0.2,label = "JPL elong ({})".format(loc),zorder=0)
+mask = (df_eph["elong"]<10.0)
+ax3.scatter(df_eph[mask]["mjd"],df_eph[mask]["elong"],c="r",s=1,label = "JPL elong<10 deg",zorder=0)
 
-# do Lomb Scargle Periodogram, see https://docs.astropy.org/en/stable/timeseries/lombscargle.html
-# to get the period of the solar elongation data
-# frequency, power = LombScargle(xdata, ydata).autopower() # autopower may not get long periods (typically 400-500 days)
-frequency = np.linspace(1.0/1e3, 1.0/1e2, 1000) # manually set the period (frequency) search array
-power = LombScargle(xdata,ydata).power(frequency)
-print(np.amin(frequency),np.amax(frequency))
-best_frequency = frequency[np.argmax(power)]
-period_days = 1. / frequency
-print(np.amin(period_days),np.amax(period_days))
-best_period = period_days[np.argmax(power)]
-print("best frequency = {}, P=1/f = {}, P/2pi={}".format(best_frequency,best_period,best_period/(2.0*np.pi)))
-phase = (np.array(xdata) / best_period) % 1
-period=best_period
 
-# plot power spectrum
-ax2.scatter(period_days,power)
-ax2.axvline(best_period,c="r")
-ax2.set_xlabel("period(d)")
-ax2.set_ylabel("power")
+# find the turning points of the solar elongation data
+ydiff = np.diff(ydata)
 
-# plot phase folded data
-ax4.scatter(phase,ydata)
-ax4.set_xlabel("phase")
-ax4.set_ylabel("angle")
+# find any -ve drop
+# turning_points = xdata[1:][ydiff<0]
 
-# define x axis grid to plot saw tooth function
-x=np.linspace(np.amin(df_data["mjd"]),np.amax(df_data["mjd"]),1000)
+# select only drops of at least a certain size
+turning_points = xdata[1:][ydiff<sol_elong_diff]
 
-# pass a lambda to curve_fit to fit only the phase of the saw function
-# fix the following parameters, including the period found by LS
-# We define a saw tooth that is always rising and drops instantly (width=1)
-# offset and amplitude (A) are set such that saw rises from 0 -> 360 deg
-A=180.0
-offset=180.0
-width=1.0
-fi=period/(2.0*np.pi)
-# we use scipy curve fit to change only the phase of the saw tooth function
-phi=0
-# define the initial parameters, popt_guess[-1] (phi) is the only one we will actually fit
-popt_guess = np.array([A, fi, offset, width, phi])
-print(popt_guess)
-y = saw_func(x, *popt_guess) # initial guess
-# popt, pcov = curve_fit(saw_func, xdata, ydata)#, p0=popt_guess)
-# use python lambda such that curve_fit only changes phi (NB we do not pass the starting guess for phi)
-popt,pcov = curve_fit(lambda x, phi: saw_func(x, A, fi, offset, width, phi), xdata, ydata) # https://stackoverflow.com/questions/12208634/fitting-only-one-parameter-of-a-function-with-many-parameters-in-python
-print(popt)
-# only phi is returned from curve_fit, recombine with the fixed parameters IN CORRECT ORDER
-popt = np.array([A, fi, offset, width, popt[0]])
-print(popt)
-y_fit=saw_func(x, *popt)
-ax3.plot(x, y_fit, c='k')
-
-# find the turning points of the fitted saw tooth function
-# when diff is -ve the saw tooth has dropped from 360 to 0 deg and this is the epoch bounds
-y_fit_diff = np.diff(y_fit)
-turning_points = x[1:][y_fit_diff<0]
 # add the first and last mjds in the dataset to fully bound all apparitions
-turning_points = np.insert(turning_points,0,x[0])
-turning_points = np.insert(turning_points,len(turning_points),x[-1])
+turning_points = np.insert(turning_points,0,xdata[0])
+turning_points = np.insert(turning_points,len(turning_points),xdata[-1])
 print(turning_points)
 for i,t in enumerate(turning_points):
     if i==0 or i==len(turning_points)-1:
@@ -172,7 +142,20 @@ for i,t in enumerate(turning_points):
     else:
         ax3.axvline(t,c="r")
 
-# ax3.legend()
+# use these turning points to divide into epochs
+for i in range(1,len(turning_points)):
+    t1=turning_points[i-1]
+    t2=turning_points[i]
+
+    df = df_data[(df_data["mjd"]>=t1) & (df_data["mjd"]<t2)]
+
+    # ax2.scatter(df['mjd'],df['reduced_mag'],s=1,c="C{}".format(i))
+    ax2.scatter(df['mjd'],df['reduced_mag'],s=2)
+    ax1.scatter(df['phase_angle'],df['reduced_mag'],s=2,label="epoch:{}".format(i))
+
+ax1.legend()
+ax3.legend()
+
 plt.tight_layout()
 
 plt.show()
