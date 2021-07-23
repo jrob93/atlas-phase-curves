@@ -14,10 +14,11 @@ from contextlib import redirect_stdout
 from calculate_phase import atlas_database_connection
 from calculate_phase.atlas_SQL_query_df import update_atlas_objects
 from astropy.time import Time
+import platform
 
 # Set the required flags for the phase fit function
-# function_flags = {"push_fit_flag":True,"hide_warning_flag":False,"mag_diff_flag":True}
-function_flags = {"push_fit_flag":False,"hide_warning_flag":False,"mag_diff_flag":True}
+function_flags = {"push_fit_flag":True,"hide_warning_flag":False,"mag_diff_flag":True}
+# function_flags = {"push_fit_flag":False,"hide_warning_flag":False,"mag_diff_flag":True}
 print(function_flags)
 # print(*function_flags)
 
@@ -75,6 +76,7 @@ cnx=atlas_database_connection.database_connection().connect()
 
 # perform the query and store results as a dataframe
 qry="select mpc_number,name from atlas_objects;"
+# qry="select mpc_number,name from atlas_objects limit 10;"
 df=pd.read_sql_query(qry,cnx)
 print(df)
 cnx.close()
@@ -107,14 +109,19 @@ of.write("date,mpc1,mpc2,t(s),N_jobs,rate(1/s)\n")
 
 # LOG ALL SETTINGS HERE
 fit = sbpy_phase_fit.phase_fit(mpc_number=1,name="Ceres",end_date=end_date_mjd,**function_flags)
+# git_status = subprocess.check_output("git show --oneline -s",shell=True).decode()
+git_status = subprocess.check_output("git log -1",shell=True).decode()
+print(git_status)
+conda_env = subprocess.check_output("conda env export",shell=True).decode()
+print(conda_env)
 with open(log_file,"a") as f:
-    f.write("{}\n".format(today)) # date being run
-    f.write("{}\n".format(os.path.basename(__file__))) # name of script run
+    f.write("date run:\n{}\n".format(today)) # date being run
+    f.write("\nlen(mpc_number_list):{}\nlen(name_list){}\n".format(len(mpc_number_list),len(name_list))) # number of objects to be processed
+    f.write("\nscript, function, flags:\n{}\n".format(os.path.basename(__file__))) # name of script run
     f.write("{}\n{}\n".format(fit,fit.__dict__)) # flags for the functions
-    f.write("{}\n{}\n".format(len(mpc_number_list),len(name_list))) # number of objects to be processed
-    # OS version
-    # conda environment and packages
-    # current git branch
+    f.write("\nplatform:\n{}\n".format(platform.uname())) # OS version
+    f.write("\ngit log -1:\n{}\n".format(git_status)) # current git branch
+    f.write("\nconda env export:\n{}\n".format(conda_env)) # conda environment and packages
     f.write("\n")
 
 for obj_list,phase_fit_func in zip(object_lists,phase_fit_functions):
