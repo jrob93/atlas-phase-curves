@@ -47,7 +47,7 @@ def get_orb_elements_id(cnx,mpc_number=False,name=False):
     else:
         qry="SELECT orbital_elements_id FROM atlas_objects WHERE mpc_number=\"{}\";".format(mpc_number)
 
-    print(qry)
+    # print(qry)
     cursor=cnx.cursor()
     cursor.execute(qry)
     row = cursor.fetchone()
@@ -192,7 +192,7 @@ def atlas_SQL_query_orbid_expname(cnx,orbital_elements_id,filter="all"):
 
     # perform the query and store results as a dataframe
     sqlQuery=sqlQuery_dave
-    print(sqlQuery)
+    # print(sqlQuery)
     df=read_sql_query(sqlQuery,cnx)
 
     return df # should also return orbital_elements_id!!!
