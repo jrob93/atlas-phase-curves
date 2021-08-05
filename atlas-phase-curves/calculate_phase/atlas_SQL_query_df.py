@@ -121,7 +121,9 @@ def atlas_SQL_query_orbid(cnx,orbital_elements_id,filter="all"):
 
         # based on dave's query that uses orbital_elements_id
         sqlQuery_dave = u"""
-        SELECT d.mjd, d.m,  d.dfitmag as merr, a.filter, o.observer_distance, o.heliocentric_distance, o.phase_angle, d.m - 5*log10(o.heliocentric_distance*o.observer_distance) as reduced_mag, o.apparent_mag, o.galactic_latitude
+        SELECT d.mjd, d.m,  d.dfitmag as merr, a.filter, o.observer_distance,
+        o.heliocentric_distance, o.phase_angle, d.m - 5*log10(o.heliocentric_distance*o.observer_distance) as reduced_mag,
+        o.apparent_mag, o.galactic_latitude, o.sun_obs_target_angle
         FROM
             dophot_photometry d,
             orbfit_positions o,
@@ -147,7 +149,9 @@ def atlas_SQL_query_orbid(cnx,orbital_elements_id,filter="all"):
         # """ % locals()
 
         sqlQuery_dave = u"""
-        SELECT d.mjd, d.m,  d.dfitmag as merr, a.filter, o.observer_distance, o.heliocentric_distance, o.phase_angle, d.m - 5*log10(o.heliocentric_distance*o.observer_distance) as reduced_mag, o.apparent_mag, o.galactic_latitude
+        SELECT d.mjd, d.m,  d.dfitmag as merr, a.filter, o.observer_distance,
+        o.heliocentric_distance, o.phase_angle, d.m - 5*log10(o.heliocentric_distance*o.observer_distance) as reduced_mag,
+        o.apparent_mag, o.galactic_latitude, o.sun_obs_target_angle
         FROM
             dophot_photometry d,
             orbfit_positions o,

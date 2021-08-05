@@ -25,6 +25,7 @@ import warnings
 
 from calculate_phase.atlas_SQL_query_df import atlas_SQL_query,get_orb_elements_id,get_unique_ids,atlas_SQL_query_orbid
 from calculate_phase.atlas_database_connection import database_connection
+import calculate_phase.solar_apparitions as sa
 
 class phase_fit():
 
@@ -217,7 +218,10 @@ class phase_fit():
             a.primaryId,
             a.updated,
             o.G_slope,
-            o.H_abs_mag
+            o.H_abs_mag,
+            o.a_semimajor_axis,
+            o.e_eccentricity,
+            o.i_inclination_deg
             FROM atlas_objects a, orbital_elements o WHERE a.orbital_elements_id=%(orbid)s AND o.mpc_number=%(mpc_num)s;
             """ % locals()
         else:
@@ -235,7 +239,10 @@ class phase_fit():
             a.primaryId,
             a.updated,
             o.G_slope,
-            o.H_abs_mag
+            o.H_abs_mag,
+            o.a_semimajor_axis,
+            o.e_eccentricity,
+            o.i_inclination_deg
             FROM atlas_objects a, orbital_elements o WHERE a.orbital_elements_id=%(orbid)s AND o.name="%(name)s";
             """ % locals()
         # print(qry_obj1)
@@ -555,6 +562,15 @@ class phase_fit():
         self.mpc_number=df_obj.iloc[0]['mpc_number']
         self.name=df_obj.iloc[0]['name']
 
+        # Find the solar apparitions from elongation
+        # ADD CONDITIONS ON ORBIT ON WHETHER OR NOT TO USE JPL?
+        # or just ignore results in the database for q < 1.3 AU
+        print(df_obj[["a_semimajor_axis","e_eccentricity","i_inclination_deg"]])
+        orbital_period_yrs = df_obj.iloc[0]["a_semimajor_axis"]**1.5
+        sol = sa.solar_apparitions(mpc_number = self.mpc_number, name = self.name, df_data = data_all_filt)
+        epochs = sol.solar_elongation(-1.0,period = orbital_period_yrs)
+        print(epochs)
+
         # do a seperate fit for data in each filter
         for filt in self.filters:
 
@@ -793,14 +809,17 @@ class phase_fit():
                             gs = gridspec.GridSpec(3,1)
                             ax1 = plt.subplot(gs[0,0])
                             ax2 = plt.subplot(gs[1,0])
-                            ax3 = plt.subplot(gs[2,0])
 
-                            ax1.scatter(data["mjd"],residuals)
+                            ax1.scatter(data["mjd"],residuals, label = "fitted data")
                             ax1.set_xlabel("mjd")
                             ax1.set_ylabel("O-C")
 
+                            ax1.scatter(data_all_filt["mjd"],data_all_filt["reduced_mag"]- np.array(model(np.array(data_all_filt["phase_angle"]) * u.deg)),
+                            s=1,c="k", label = "all data")
+                            for i in range(len(epochs)):
+                                ax1.axvline(epochs[i],color="r")
+
                             # find time difference between each detection
-                            # print(data["mjd"])
                             # ascending order sort on date
                             sort_mask = np.argsort(data["mjd"])
                             mjd = np.array(data["mjd"])[sort_mask]
@@ -809,73 +828,33 @@ class phase_fit():
                             mag = np.array(data["reduced_mag"])[sort_mask]
                             mag_err = np.array(data["merr"])[sort_mask]
 
-                            # print(mjd - data["mjd"])
-                            # print(mjd,len(mjd))
-                            delta_mjd = np.diff(mjd)
-                            # print(delta_mjd,len(delta_mjd))
-                            ax2.hist(delta_mjd,bins=200,log="True")
-                            ax2.set_xlabel("delta_mjd")
-                            ax2.set_ylabel("n")
+                            for i in range(1,len(epochs)):
 
-                            # determine a sensible time range to define an epoch
-                            # dm_std = np.std(delta_mjd)
-                            # print(delta_mjd[delta_mjd>(np.median(delta_mjd)*10.0*dm_std)])
-
-                            # delta_epoch = 365.0/2.0
-                            delta_epoch = 100.0
-                            # delta_epoch = 175.0
-                            # delta_epoch = 148.0
-                            # delta_epoch = 365.0/3.0
-                            ax2.axvline(delta_epoch,ls=":",c="r")
-                            mask = delta_mjd  > delta_epoch
-                            epoch_start = mjd[1:][mask]
-                            epoch_end = mjd[:-1][mask]
-
-                            print(epoch_start)
-                            print(epoch_end)
-
-                            # add the very first and last dates
-                            epoch_start = np.insert(epoch_start,0,np.amin(mjd))
-                            epoch_end = np.insert(epoch_end,len(epoch_end),np.amax(mjd))
-
-                            print(epoch_start)
-                            print(epoch_end)
-                            N_data_epoch = 8
-
-                            for i,m1,m2 in zip(range(len(epoch_start)),epoch_start,epoch_end):
+                                m1 = epochs[i-1]
+                                m2 = epochs[i]
                                 N_days_epoch = m2-m1
-                                print(m1,m2,N_days_epoch)
-                                date_mask = ((mjd>=m1) & (mjd<=m2))
+                                date_mask = ((mjd>=m1) & (mjd<m2))
+                                N_data_epoch = len(mjd[date_mask])
+                                print(m1,m2,N_days_epoch,N_data_epoch)
 
-                                if len(mjd[date_mask])<N_data_epoch:
-                                    continue
-
-                                ax1.axvline(m1,ls=":",c="r")#,label="start")
-                                ax1.axvline(m2,ls="--",c="r")#,label="end")
-                                ax1.scatter(mjd[date_mask],residuals[date_mask],s=1)
+                                ax1.scatter(mjd[date_mask],residuals[date_mask],facecolor="none",edgecolor="C{}".format(i), label = "epoch {}".format(i))
 
                                 res_med = np.median(residuals[date_mask])
                                 ax1.hlines(res_med,m1,m2,color="r")
 
                                 # try fit model to epoch data
-                                _alpha = np.array(alpha[date_mask]) * u.deg
-                                _mag = np.array(mag[date_mask]) * u.mag
-                                _mag_err = np.array(mag_err[date_mask]) * u.mag
+                                if N_data_epoch>0:
+                                    _alpha = np.array(alpha[date_mask]) * u.deg
+                                    _mag = np.array(mag[date_mask]) * u.mag
+                                    _mag_err = np.array(mag_err[date_mask]) * u.mag
 
-                                ax3.scatter(_alpha,_mag,c="C{}".format(i+1))
-                                model = self.fitter(model_func, _alpha, _mag, weights=1.0/np.array(_mag_err))
-                                ax3.plot(_alpha,model(_alpha),c="C{}".format(i+1))
+                                    ax2.scatter(_alpha,_mag,c="C{}".format(i), label = "epoch {}".format(i))
+                                    model = self.fitter(model_func, _alpha, _mag, weights=1.0/np.array(_mag_err))
+                                    ax2.plot(_alpha,model(_alpha),c="C{}".format(i))
 
                             ax1.axhline(0,c="k")
 
-                            ax3.invert_yaxis()
-
-                            # # plot years
-                            # yrs = np.arange(epoch_end[0],epoch_end[-1],365)
-                            # for y in yrs:
-                            #     ax1.axvline(y,c="k")
-
-                            # ax1.legend()
+                            ax2.invert_yaxis()
 
                             plt.show()
 
