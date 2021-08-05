@@ -14,27 +14,45 @@ from contextlib import redirect_stdout
 from calculate_phase import atlas_database_connection
 from calculate_phase.atlas_SQL_query_df import update_atlas_objects
 from astropy.time import Time
+import platform
+
+# Set the required flags for the phase fit function
+function_flags = {"push_fit_flag":True,"hide_warning_flag":False,"mag_diff_flag":True}
+# function_flags = {"push_fit_flag":False,"hide_warning_flag":False,"mag_diff_flag":True}
+print(function_flags)
+# print(*function_flags)
+
+# set the date beyond which no obs are counted
+# end_date=Time(Time.now(),scale='utc',format="iso")
+end_date=Time("2021-02-14",scale='utc',format="iso")
+end_date_mjd=round(end_date.mjd)
+print(end_date,end_date_mjd)
 
 # define the fitting functions
 def phase_fit_func_mpc(mpc_number,end_date):
     with open("tmp", "w") as f:
         sys.stdout = f # redirect output to file (or just suppress? https://stackoverflow.com/questions/8447185/to-prevent-a-function-from-printing-in-the-batch-console-in-python)
-        # fit = sbpy_phase_fit.phase_fit(mpc_number=mpc_number,end_date=end_date,push_fit_flag=True,hide_warning_flag=False)
-        fit = sbpy_phase_fit.phase_fit(mpc_number=mpc_number,end_date=end_date,push_fit_flag=True,hide_warning_flag=False,mag_diff_flag=True)
+        fit = sbpy_phase_fit.phase_fit(mpc_number=mpc_number,end_date=end_date,**function_flags)
         check=fit.calculate()
         sys.stdout = sys.__stdout__ # need to reset the redirect!
-    # fit = sbpy_phase_fit.phase_fit(mpc_number=mpc_number,push_fit_flag=True,hide_warning_flag=True)
-    # check=fit.calculate()
-
     return check
 
 def phase_fit_func_name(name):
     with open("tmp", "w") as f:
         sys.stdout = f
-        fit = sbpy_phase_fit.phase_fit(name=name,end_date=end_date,push_fit_flag=True,hide_warning_flag=True)
+        fit = sbpy_phase_fit.phase_fit(name=name,end_date=end_date,**function_flags)
         check=fit.calculate()
         sys.stdout = sys.__stdout__
     return check
+
+# # We could just use a single function if we are smart passing name and mpc_number...
+# def phase_fit_func(mpc_number=False,name=False,end_date):
+#     with open("tmp", "w") as f:
+#         sys.stdout = f # redirect output to file (or just suppress? https://stackoverflow.com/questions/8447185/to-prevent-a-function-from-printing-in-the-batch-console-in-python)
+#         fit = sbpy_phase_fit.phase_fit(mpc_number=mpc_number,name=name,end_date=end_date,**function_flags)
+#         check=fit.calculate()
+#         sys.stdout = sys.__stdout__ # need to reset the redirect!
+#     return check
 
 # wipe the log file
 log_file="sbpy_phase_fit.log"
@@ -49,30 +67,23 @@ cnx=atlas_database_connection.database_connection().connect()
 # self.cnx.cursor()
 # self.cursor.execute(qry)
 # self.cnx.commit()
-with open(log_file,"a") as f:
-    f.write("{} start update_atlas_objects\n".format(Time(Time.now(),scale='utc',format="iso")))
-# update_atlas_objects(cnx)
-with open(log_file,"a") as f:
-    f.write("{} start update_atlas_objects\n".format(Time(Time.now(),scale='utc',format="iso")))
-
+# with open(log_file,"a") as f:
+#     f.write("{} start update_atlas_objects\n".format(Time(Time.now(),scale='utc',format="iso")))
+# # update_atlas_objects(cnx)
+# with open(log_file,"a") as f:
+#     f.write("{} start update_atlas_objects\n".format(Time(Time.now(),scale='utc',format="iso")))
 # exit()
 
 # perform the query and store results as a dataframe
 qry="select mpc_number,name from atlas_objects;"
+# qry="select mpc_number,name from atlas_objects limit 10;"
 df=pd.read_sql_query(qry,cnx)
-# df=df.dropna()
 print(df)
 cnx.close()
 
 # make the mpc number list
-#mpc_number_list=np.random.choice(df['mpc_number'].astype(int),10,replace=False)
 df_mpc=df[~np.isnan(df["mpc_number"])]
 mpc_number_list=df_mpc['mpc_number'].astype(int)
-# print(mpc_number_list)
-# print(len(mpc_number_list))
-
-# mpc_number_list=mpc_number_list[:100]
-
 mpc_number_list=list(mpc_number_list)
 print(mpc_number_list[:10])
 print(len(mpc_number_list))
@@ -85,53 +96,37 @@ print(len(name_list))
 
 # do all the mpc_number fits, then do all the name fits
 object_lists=[mpc_number_list,name_list]
-#object_lists=[mpc_number_list[:4],name_list[:4]]
+object_lists=[mpc_number_list[:4],name_list[:4]]
 phase_fit_functions=[phase_fit_func_mpc,phase_fit_func_name]
 
-# set the date beyond which no obs are counted
-# end_date=Time(Time.now(),scale='utc',format="iso")
-end_date=Time("2021-02-14",scale='utc',format="iso")
-end_date_mjd=round(end_date.mjd) # comvert to mjd and round so that it doesn't matter what hour we run at
-print(end_date)
-with open(log_file,"a") as f:
-    f.write("set end_date={}, end_date_mjd={}\n".format(end_date,end_date_mjd))
-
-#exit()
-
 # create a file that records the date, the start and end mpc numbers in a batch, the length of time to complete a batch, the number of jobs in a batch and the number of objects done per sec
-# today=datetime.datetime.now()
-print(type(end_date.value))
-today=datetime.fromisoformat(end_date.value)
+today=datetime.now()
+# today=datetime.fromisoformat(end_date.value)
 fname="fit_phase_curves_bulk_record_{}-{}-{}.csv".format(today.day,today.month,today.year)
 print(fname)
-# exit()
 of=open(fname,"w")
 of.write("date,mpc1,mpc2,t(s),N_jobs,rate(1/s)\n")
 
+# LOG ALL SETTINGS HERE
+fit = sbpy_phase_fit.phase_fit(mpc_number=1,name="Ceres",end_date=end_date_mjd,**function_flags)
+# git_status = subprocess.check_output("git show --oneline -s",shell=True).decode()
+git_status = subprocess.check_output("git log -1",shell=True).decode()
+print(git_status)
+conda_env = subprocess.check_output("conda env export",shell=True).decode()
+print(conda_env)
+with open(log_file,"a") as f:
+    f.write("date run:\n{}\n".format(today)) # date being run
+    f.write("\nlen(mpc_number_list):{}\nlen(name_list){}\n".format(len(mpc_number_list),len(name_list))) # number of objects to be processed
+    f.write("\nscript, function, flags:\n{}\n".format(os.path.basename(__file__))) # name of script run
+    f.write("{}\n{}\n".format(fit,fit.__dict__)) # flags for the functions
+    f.write("\nplatform:\n{}\n".format(platform.uname())) # OS version
+    f.write("\ngit log -1:\n{}\n".format(git_status)) # current git branch
+    f.write("\nconda env export:\n{}\n".format(conda_env)) # conda environment and packages
+    f.write("\n")
+
 for obj_list,phase_fit_func in zip(object_lists,phase_fit_functions):
-    # print(obj_list[:10])
+
     print(phase_fit_func.__name__)
-
-    # quick test
-    # for j in range(len(obj_list)):
-        # print("start {}".format(obj_list[j]))
-        # check=phase_fit_func(obj_list[j])
-
-    # print("run in serial")
-    # t_start=time.time()
-    # count=0
-    # for n in mpc_number_list:
-    #     phase_fit_func(n)
-    #     # if count>3:
-    #     #     break
-    #     # else:
-    #     #     count+=1
-    #     count+=1
-    # t_end=time.time()
-    # print ("N_jobs = {}".format(count))
-    # print ("t_pool = {}".format(t_end-t_start))
-    # print("{} objects/second".format(float(count)/(t_end-t_start)))
-    # exit()
 
     # set up pool and fit phase
     threads=multiprocessing.cpu_count()
@@ -153,13 +148,6 @@ for obj_list,phase_fit_func in zip(object_lists,phase_fit_functions):
         print()
         jobs_done+=len(sub_list)
         t_elapsed=t_end-t_start
-
-        # # try check if the fit worked
-        # for i,r in enumerate(multiple_results):
-        #     try:
-        #         print(r.get())
-        #     except:
-        #         print("error {}".format(sub_list[i]))
 
         print("N jobs done = {}".format(jobs_done))
         print("time elapsed = {}".format(t_elapsed))

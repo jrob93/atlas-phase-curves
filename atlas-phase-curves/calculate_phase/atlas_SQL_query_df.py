@@ -47,7 +47,7 @@ def get_orb_elements_id(cnx,mpc_number=False,name=False):
     else:
         qry="SELECT orbital_elements_id FROM atlas_objects WHERE mpc_number=\"{}\";".format(mpc_number)
 
-    print(qry)
+    # print(qry)
     cursor=cnx.cursor()
     cursor.execute(qry)
     row = cursor.fetchone()
@@ -176,7 +176,10 @@ def atlas_SQL_query_orbid_expname(cnx,orbital_elements_id,filter="all"):
 
     # based on dave's query that uses orbital_elements_id
     sqlQuery_dave = u"""
-    SELECT d.expname,o.dec_deg,o.ra_deg,d.mjd, d.m,  d.dfitmag as merr, a.filter, o.observer_distance, o.heliocentric_distance, o.phase_angle, d.m - 5*log10(o.heliocentric_distance*o.observer_distance) as reduced_mag, o.apparent_mag, o.galactic_latitude
+    SELECT d.expname,o.dec_deg,o.ra_deg,d.mjd, d.m,  d.dfitmag as merr, a.filter,
+     o.observer_distance, o.heliocentric_distance, o.phase_angle,
+      d.m - 5*log10(o.heliocentric_distance*o.observer_distance) as reduced_mag,
+       o.apparent_mag, o.galactic_latitude, o.sun_obs_target_angle
     FROM
         dophot_photometry d,
         orbfit_positions o,
@@ -189,7 +192,7 @@ def atlas_SQL_query_orbid_expname(cnx,orbital_elements_id,filter="all"):
 
     # perform the query and store results as a dataframe
     sqlQuery=sqlQuery_dave
-    print(sqlQuery)
+    # print(sqlQuery)
     df=read_sql_query(sqlQuery,cnx)
 
     return df # should also return orbital_elements_id!!!
