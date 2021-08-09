@@ -54,7 +54,9 @@ save_path="results_analysis/calculate_phase_figs",
 # save_path="results_analysis/calculate_phase_figs_0-01",
 # save_path="results_analysis/calculate_phase_figs_0-005",
 start_date=start_date, end_date=end_date,
-model_list=["HG"],filter_list=["o"],
+model_list=["HG"],
+# filter_list=["o"],
+filter_list=filters,
 # save_file_type="pdf",
 mag_diff_flag=True,save_file_suffix="_mag_diff"
 )
