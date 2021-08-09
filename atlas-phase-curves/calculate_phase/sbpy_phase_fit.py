@@ -542,6 +542,96 @@ class phase_fit():
 
         return
 
+    def plot_epochs(self,model_func,model_name,model,data,data_all_filt,epochs,filt):
+        """
+        """
+
+        if not self.show_fig:
+            import matplotlib
+            print("use agg")
+            matplotlib.use('agg') # use agg backend to stop python stealing focus when plotting
+
+        import matplotlib.pyplot as plt
+        import matplotlib.gridspec as gridspec
+
+        alpha = np.array(data['phase_angle']) * u.deg
+        mag = np.array(data["reduced_mag"]) * u.mag
+        mag_err = np.array(data["merr"]) * u.mag
+        residuals = mag - model(alpha)
+
+        fig = plt.figure()
+        gs = gridspec.GridSpec(2,1)
+        ax1 = plt.subplot(gs[0,0])
+        ax2 = plt.subplot(gs[1,0])
+
+        ax1.axhline(0,c="k")
+        # ax1.scatter(data["mjd"],residuals, label = "fitted data")
+        ax1.set_xlabel("mjd")
+        ax1.set_ylabel("O-C")
+        ax2.set_xlabel("phase_angle(degrees)")
+        ax2.set_ylabel("reduced_mag")
+
+        ax2.plot(alpha,model(alpha),c="k")
+
+        for i in range(len(epochs)):
+            ax1.axvline(epochs[i],color="r")
+
+        # find time difference between each detection
+        # ascending order sort on date
+        sort_mask = np.argsort(data["mjd"])
+        mjd = np.array(data["mjd"])[sort_mask]
+        residuals = np.array(residuals)[sort_mask]
+        alpha = np.array(data["phase_angle"])[sort_mask]
+        mag = np.array(data["reduced_mag"])[sort_mask]
+        mag_err = np.array(data["merr"])[sort_mask]
+
+        for i in range(1,len(epochs)):
+
+            m1 = epochs[i-1]
+            m2 = epochs[i]
+            N_days_epoch = m2-m1
+            date_mask = ((mjd>=m1) & (mjd<m2))
+            N_data_epoch = len(mjd[date_mask])
+            # print(m1,m2,N_days_epoch,N_data_epoch)
+
+            ax1.scatter(mjd[date_mask],residuals[date_mask],c="C{}".format(i), label = "epoch {}".format(i))
+
+            # try fit model to epoch data
+            if N_data_epoch>0:
+                res_med = np.median(residuals[date_mask])
+                ax1.hlines(res_med,m1,m2,color="r")
+
+                _alpha = np.array(alpha[date_mask]) * u.deg
+                _mag = np.array(mag[date_mask]) * u.mag
+                _mag_err = np.array(mag_err[date_mask]) * u.mag
+
+                ax2.scatter(_alpha,_mag,c="C{}".format(i), label = "epoch {}".format(i))
+                _model = self.fitter(model_func, _alpha, _mag, weights=1.0/np.array(_mag_err))
+                ax2.plot(_alpha,_model(_alpha),c="C{}".format(i))
+
+        # plot all data points
+        ax1.scatter(data_all_filt["mjd"],data_all_filt["reduced_mag"]- np.array(model(np.array(data_all_filt["phase_angle"]) * u.deg)),
+        s=1,c="k", label = "all data")
+
+        ax2.invert_yaxis()
+
+        ax1.set_title("{}_{}_{}_{}_{}_epochs".format(os.path.basename(__file__).split('.')[0],self.file_identifier,model_name,self.clip_label,filt))
+        plt.tight_layout()
+
+        if self.save_fig:
+            fname="{}/{}_{}_{}_{}_{}_epochs{}.{}".format(self.save_path,os.path.basename(__file__).split('.')[0],self.file_identifier,model_name,self.clip_label,filt,self.save_file_suffix,self.save_file_type)
+            print(fname)
+            plt.savefig(fname, bbox_inches='tight')
+
+        if self.show_fig:
+            plt.show()
+        else:
+            plt.close()
+
+        return
+
+
+
     def calculate(self):
         """calculate the phase curves on the phase_fit object"""
 
@@ -569,6 +659,8 @@ class phase_fit():
         orbital_period_yrs = df_obj.iloc[0]["a_semimajor_axis"]**1.5
         sol = sa.solar_apparitions(mpc_number = self.mpc_number, name = self.name, df_data = data_all_filt)
         epochs = sol.solar_elongation(-1.0,period = orbital_period_yrs)
+        # epochs = sol.solar_elongation_JPL(JPL_step="7d")
+
         print(epochs)
 
         # do a seperate fit for data in each filter
@@ -682,6 +774,7 @@ class phase_fit():
                 # initialise the data that we will iteratively fit and cut
                 data=data_filt
                 data=data.sort_values("phase_angle") # ensure that the dataframe is in order for plotting
+                # data=data.sort_values("mjd") # ensure that the dataframe is in date order for finding epochs
 
                 # iteratively fit and cut data, for a maximum of max_iters times
                 k=0
@@ -801,63 +894,30 @@ class phase_fit():
                             OC_std = np.std(residuals)
                             OC_range = np.absolute(np.amax(residuals)-np.amin(residuals))
 
-                            # CHECK RESIDUALS FOR INDIVIDUAL EPOCHS HERE?
-                            import matplotlib.pyplot as plt
-                            import matplotlib.gridspec as gridspec
-
-                            fig = plt.figure()
-                            gs = gridspec.GridSpec(3,1)
-                            ax1 = plt.subplot(gs[0,0])
-                            ax2 = plt.subplot(gs[1,0])
-
-                            ax1.scatter(data["mjd"],residuals, label = "fitted data")
-                            ax1.set_xlabel("mjd")
-                            ax1.set_ylabel("O-C")
-
-                            ax1.scatter(data_all_filt["mjd"],data_all_filt["reduced_mag"]- np.array(model(np.array(data_all_filt["phase_angle"]) * u.deg)),
-                            s=1,c="k", label = "all data")
-                            for i in range(len(epochs)):
-                                ax1.axvline(epochs[i],color="r")
-
-                            # find time difference between each detection
-                            # ascending order sort on date
+                            # residuals for each epoch
                             sort_mask = np.argsort(data["mjd"])
                             mjd = np.array(data["mjd"])[sort_mask]
                             residuals = np.array(residuals)[sort_mask]
-                            alpha = np.array(data["phase_angle"])[sort_mask]
-                            mag = np.array(data["reduced_mag"])[sort_mask]
-                            mag_err = np.array(data["merr"])[sort_mask]
-
+                            res_med_list = []
                             for i in range(1,len(epochs)):
-
                                 m1 = epochs[i-1]
                                 m2 = epochs[i]
                                 N_days_epoch = m2-m1
                                 date_mask = ((mjd>=m1) & (mjd<m2))
                                 N_data_epoch = len(mjd[date_mask])
-                                print(m1,m2,N_days_epoch,N_data_epoch)
-
-                                ax1.scatter(mjd[date_mask],residuals[date_mask],facecolor="none",edgecolor="C{}".format(i), label = "epoch {}".format(i))
-
-                                res_med = np.median(residuals[date_mask])
-                                ax1.hlines(res_med,m1,m2,color="r")
-
-                                # try fit model to epoch data
                                 if N_data_epoch>0:
-                                    _alpha = np.array(alpha[date_mask]) * u.deg
-                                    _mag = np.array(mag[date_mask]) * u.mag
-                                    _mag_err = np.array(mag_err[date_mask]) * u.mag
+                                    res_med = np.median(residuals[date_mask])
+                                    res_med_list.append(res_med)
+                                    # print(m1,m2,N_days_epoch,N_data_epoch,res_med)
+                            res_med_list = np.array(res_med_list)
+                            print(res_med_list)
+                            print("median median epoch residual = {}".format(np.median(res_med_list)))
+                            print("mean median epoch residual = {}".format(np.mean(res_med_list)))
+                            print("std median epoch residual = {}".format(np.std(res_med_list)))
+                            print("range median epoch residual = {}".format(np.amax(res_med_list)-np.amin(res_med_list)))
 
-                                    ax2.scatter(_alpha,_mag,c="C{}".format(i), label = "epoch {}".format(i))
-                                    model = self.fitter(model_func, _alpha, _mag, weights=1.0/np.array(_mag_err))
-                                    ax2.plot(_alpha,model(_alpha),c="C{}".format(i))
-
-                            ax1.axhline(0,c="k")
-
-                            ax2.invert_yaxis()
-
-                            plt.show()
-
+                            # plot epochs
+                            self.plot_epochs(model_func,model_name,model,data,data_all_filt,epochs,filt)
                             exit()
 
                             # check for errors
