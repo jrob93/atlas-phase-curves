@@ -154,6 +154,7 @@ phase_curve_N_cut_B89_c
 phase_curve_N_cut_B89_o
 phase_curve_N_cut_P16_c
 phase_curve_N_cut_P16_o
+N_apparitions
 phase_curve_app_res_med_2M10_c
 phase_curve_app_res_med_2M10_o
 phase_curve_app_res_med_3M10_c
