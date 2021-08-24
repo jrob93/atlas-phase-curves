@@ -596,8 +596,10 @@ class phase_fit():
 
             ax1.scatter(mjd[date_mask],residuals[date_mask],c="C{}".format(i), label = "epoch {}".format(i))
 
-            # try fit model to epoch data
-            if N_data_epoch>0:
+            # try fit model to epoch data, provided there is enough data
+            # if N_data_epoch>0 & len(alpha)>len(model_func.param_names):
+            if N_data_epoch>len(model_func.param_names):
+
                 res_med = np.median(residuals[date_mask])
                 ax1.hlines(res_med,m1,m2,color="r")
 
@@ -613,6 +615,7 @@ class phase_fit():
         ax1.scatter(data_all_filt["mjd"],data_all_filt["reduced_mag"]- np.array(model(np.array(data_all_filt["phase_angle"]) * u.deg)),
         s=1,c="k", label = "all data")
 
+        ax1.invert_yaxis()
         ax2.invert_yaxis()
 
         ax1.set_title("{}_{}_{}_{}_{}_epochs".format(os.path.basename(__file__).split('.')[0],self.file_identifier,model_name,self.clip_label,filt))
@@ -916,14 +919,17 @@ class phase_fit():
                             print(res_med_list)
                             app_res_med = np.median(res_med_list) # median of the median residual for all apparitions
                             app_res_std = np.std(res_med_list) # std of the median residual for all apparitions
+                            app_res_mean = np.mean(res_med_list) # mean of the median residual for all apparitions
+                            app_res_range = np.absolute(np.amax(res_med_list)-np.amin(res_med_list)) # maximum difference between apparition residuals
+
                             print("total number of epochs = {}".format(N_app))
                             print("median median epoch residual = {}".format(app_res_med))
-                            print("mean median epoch residual = {}".format(np.mean(res_med_list)))
+                            print("mean median epoch residual = {}".format(app_res_mean))
                             print("std median epoch residual = {}".format(app_res_std))
-                            print("range median epoch residual = {}".format(np.amax(res_med_list)-np.amin(res_med_list)))
+                            print("range median epoch residual = {}".format(app_res_range))
 
                             # # plot epochs
-                            # self.plot_epochs(model_func,model_name,model,data,data_all_filt,epochs,filt)
+                            self.plot_epochs(model_func,model_name,model,data,data_all_filt,epochs,filt)
                             # exit()
 
                             # check for errors
@@ -957,6 +963,7 @@ class phase_fit():
 
                             df_obj["phase_curve_app_res_med{}_{}".format(ms,filt)]=app_res_med
                             df_obj["phase_curve_app_res_std{}_{}".format(ms,filt)]=app_res_std
+                            df_obj["phase_curve_app_res_range{}_{}".format(ms,filt)]=app_res_range
 
                             for p in range(len(pc)):
                                 df_obj["phase_curve_{}{}_{}".format(pc[p],ms,filt)]=params[p]
