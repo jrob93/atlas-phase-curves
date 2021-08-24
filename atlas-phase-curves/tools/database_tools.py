@@ -70,6 +70,34 @@ def load_atlas_phase_fits_orbs(fname,nrows=None):
 
     return df
 
+def load_orbital_elements(fname,nrows=None):
+    """
+    Load our the rockAtlas orbital_elements table
+    Uses the dtypes file to deal with a pandas low memory error
+
+    fname = file name of the database csv, including the path
+    nrows = number of rows to read in, leave as None to read whole file
+    """
+
+    # load the dtypes for the atlas_phase_fits table to avoid low memory error from read_csv
+    # NB pandas has trouble with nans in int columns - use float - https://stackoverflow.com/questions/11548005/numpy-or-pandas-keeping-array-type-as-integer-while-having-a-nan-value
+    dtypes_file="{}/database_meta_files/dtypes_orbital_elements.txt".format(abs_path)
+    with open(dtypes_file,"r") as f:
+        dat=f.readlines()
+    # parse the dtypes
+    dat=[d.rstrip() for d in dat]
+    keys=[k.split(" ")[0] for k in dat]
+    vals=[k.split(" ")[-1].replace(",", "") for k in dat]
+    # Create a zip object from two lists
+    zipbObj = zip(keys,vals)
+    # Create a dictionary from zip object
+    dtype_dict = dict(zipbObj)
+
+    # load as dataframe
+    df=pd.read_csv(fname,index_col=0,dtype=dtype_dict,nrows=nrows)
+
+    return df
+
 def atlas_phase_fits_new_cols(df,model="B89",filt="o"):
 
     """
