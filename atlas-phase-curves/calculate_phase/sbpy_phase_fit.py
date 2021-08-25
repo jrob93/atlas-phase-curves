@@ -911,7 +911,7 @@ class phase_fit():
                                 N_days_epoch = m2-m1
                                 date_mask = ((mjd>=m1) & (mjd<m2))
                                 N_data_epoch = len(mjd[date_mask])
-                                if N_data_epoch>0:
+                                if N_data_epoch>len(pc): # need at least the same of data points as number of parameters
                                     res_med = np.median(residuals[date_mask])
                                     res_med_list.append(res_med)
                                     # print(m1,m2,N_days_epoch,N_data_epoch,res_med)
