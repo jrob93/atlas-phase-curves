@@ -677,6 +677,97 @@ class phase_fit():
 
         return
 
+    def plot_epochs(self,model_func,model_name,model,data,data_all_filt,epochs,filt):
+        """
+        """
+
+        if not self.show_fig:
+            import matplotlib
+            print("use agg")
+            matplotlib.use('agg') # use agg backend to stop python stealing focus when plotting
+
+        import matplotlib.pyplot as plt
+        import matplotlib.gridspec as gridspec
+
+        alpha = np.array(data['phase_angle']) * u.deg
+        mag = np.array(data["reduced_mag"]) * u.mag
+        mag_err = np.array(data["merr"]) * u.mag
+        residuals = mag - model(alpha)
+
+        fig = plt.figure()
+        gs = gridspec.GridSpec(2,1)
+        ax1 = plt.subplot(gs[0,0])
+        ax2 = plt.subplot(gs[1,0])
+
+        ax1.axhline(0,c="k")
+        # ax1.scatter(data["mjd"],residuals, label = "fitted data")
+        ax1.set_xlabel("mjd")
+        ax1.set_ylabel("O-C")
+        ax2.set_xlabel("phase_angle(degrees)")
+        ax2.set_ylabel("reduced_mag")
+
+        ax2.plot(alpha,model(alpha),c="k")
+
+        for i in range(len(epochs)):
+            ax1.axvline(epochs[i],color="r")
+
+        # find time difference between each detection
+        # ascending order sort on date
+        sort_mask = np.argsort(data["mjd"])
+        mjd = np.array(data["mjd"])[sort_mask]
+        residuals = np.array(residuals)[sort_mask]
+        alpha = np.array(data["phase_angle"])[sort_mask]
+        mag = np.array(data["reduced_mag"])[sort_mask]
+        mag_err = np.array(data["merr"])[sort_mask]
+
+        for i in range(1,len(epochs)):
+
+            m1 = epochs[i-1]
+            m2 = epochs[i]
+            N_days_epoch = m2-m1
+            date_mask = ((mjd>=m1) & (mjd<m2))
+            N_data_epoch = len(mjd[date_mask])
+            # print(m1,m2,N_days_epoch,N_data_epoch)
+
+            ax1.scatter(mjd[date_mask],residuals[date_mask],c="C{}".format(i), label = "epoch {}".format(i))
+
+            # try fit model to epoch data, provided there is enough data
+            # if N_data_epoch>0 & len(alpha)>len(model_func.param_names):
+            if N_data_epoch>len(model_func.param_names):
+
+                res_med = np.median(residuals[date_mask])
+                ax1.hlines(res_med,m1,m2,color="r")
+
+                _alpha = np.array(alpha[date_mask]) * u.deg
+                _mag = np.array(mag[date_mask]) * u.mag
+                _mag_err = np.array(mag_err[date_mask]) * u.mag
+
+                ax2.scatter(_alpha,_mag,c="C{}".format(i), label = "epoch {}".format(i))
+                _model = self.fitter(model_func, _alpha, _mag, weights=1.0/np.array(_mag_err))
+                ax2.plot(_alpha,_model(_alpha),c="C{}".format(i))
+
+        # plot all data points
+        ax1.scatter(data_all_filt["mjd"],data_all_filt["reduced_mag"]- np.array(model(np.array(data_all_filt["phase_angle"]) * u.deg)),
+        s=1,c="k", label = "all data")
+
+        ax1.invert_yaxis()
+        ax2.invert_yaxis()
+
+        ax1.set_title("{}_{}_{}_{}_{}_epochs".format(os.path.basename(__file__).split('.')[0],self.file_identifier,model_name,self.clip_label,filt))
+        plt.tight_layout()
+
+        if self.save_fig:
+            fname="{}/{}_{}_{}_{}_{}_epochs{}.{}".format(self.save_path,os.path.basename(__file__).split('.')[0],self.file_identifier,model_name,self.clip_label,filt,self.save_file_suffix,self.save_file_type)
+            print(fname)
+            plt.savefig(fname, bbox_inches='tight')
+
+        if self.show_fig:
+            plt.show()
+        else:
+            plt.close()
+
+        return
+
     def calculate(self):
         """calculate the phase curves on the phase_fit object"""
 
