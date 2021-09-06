@@ -409,11 +409,15 @@ class phase_fit():
         mag_err = np.array(data["merr"]) * u.mag
 
         fig = plt.figure()
-        gs = gridspec.GridSpec(1,1)
+        gs = gridspec.GridSpec(2,1,height_ratios=[1,0.05])
         ax1 = plt.subplot(gs[0,0])
+        ax2 = plt.subplot(gs[1,0])
 
         # plot all the data from the SQL that goes into the fitting process
         ax1.errorbar(data_filt['phase_angle'],data_filt['reduced_mag'],data_filt['merr'], fmt='ko',label="data",zorder=0,markersize="2")
+        s1=ax1.scatter(data_filt['phase_angle'],data_filt['reduced_mag'],c=data_filt['mjd'],s=10)
+        cbar1=fig.colorbar(s1,ax2,use_gridspec=True, orientation='horizontal')
+        cbar1.set_label("mjd")
 
         # highlight any measurements with zero uncertainty
         ax1.scatter(data_zero_err['phase_angle'],data_zero_err['reduced_mag'],edgecolor='r',facecolor="none",marker="^",s=50,label="{} mag_err = 0".format(len(data_zero_err)))
@@ -434,6 +438,64 @@ class phase_fit():
             print(j,label_iter_list[j])
             ax1.plot(alpha_fit,model_iter_list[j](alpha_fit),label=label_iter_list[j])
             ax1.scatter(alpha_cut_iter_list[j],mag_cut_iter_list[j],marker="x",zorder=3)
+
+        ax1.plot(alpha_fit,model(alpha_fit),label=label)
+
+        ax1.set_xlabel('alpha(degrees)')
+        ax1.set_ylabel('reduced mag')
+        ax1.invert_yaxis()
+        ax1.legend(prop={'size': 6})
+
+        ax1.set_title("{}_{}_{}_{}_{}".format(os.path.basename(__file__).split('.')[0],self.file_identifier,model_name,self.clip_label,filt))
+        plt.tight_layout()
+
+        if self.save_fig:
+            fname="{}/{}_{}_{}_{}_{}_iter{}.{}".format(self.save_path,os.path.basename(__file__).split('.')[0],self.file_identifier,model_name,self.clip_label,filt,self.save_file_suffix,self.save_file_type)
+            print(fname)
+            plt.savefig(fname, bbox_inches='tight')
+
+        if self.show_fig:
+            plt.show()
+        else:
+            plt.close()
+
+        return
+
+    def plot_phase_fit_iteration2(self,model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
+    data_filt,data_zero_err,data_small_err,data_gal,data_diff):
+
+        if not self.show_fig:
+            import matplotlib
+            print("use agg")
+            matplotlib.use('agg') # use agg backend to stop python stealing focus when plotting
+
+        import matplotlib.pyplot as plt
+        import matplotlib.gridspec as gridspec
+
+        # extract asteroid phase data from data, with units
+        alpha = np.array(data['phase_angle']) * u.deg
+        mag = np.array(data["reduced_mag"]) * u.mag
+        mag_err = np.array(data["merr"]) * u.mag
+
+        fig = plt.figure()
+        gs = gridspec.GridSpec(2,1,height_ratios=[1,0.05])
+        ax1 = plt.subplot(gs[0,0])
+        ax2 = plt.subplot(gs[1,0])
+
+        # plot all the data from the SQL that goes into the fitting process
+        ax1.errorbar(data['phase_angle'],data['reduced_mag'],data['merr'], fmt='ko',label="data",zorder=0,markersize="2")
+        s1=ax1.scatter(data['phase_angle'],data['reduced_mag'],c=data['mjd'],s=10)
+        cbar1=fig.colorbar(s1,ax2,use_gridspec=True, orientation='horizontal')
+        cbar1.set_label("mjd")
+
+        # plot iterative fits and cuts
+        alpha_fit=np.linspace(np.amin(alpha),np.amax(alpha),100)
+        print(label_iter_list)
+        print(model_iter_list)
+        # print(k)
+        for j in range(len(model_iter_list)):
+            print(j,label_iter_list[j])
+            ax1.plot(alpha_fit,model_iter_list[j](alpha_fit),label=label_iter_list[j])
 
         ax1.plot(alpha_fit,model(alpha_fit),label=label)
 
@@ -532,6 +594,79 @@ class phase_fit():
             plt.show()
         else:
             plt.close()
+
+        return
+
+    def plot_phase_fit_fancy(self,model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
+    data_filt,data_zero_err,data_small_err,data_gal,data_diff):
+
+        if not self.show_fig:
+            import matplotlib
+            print("use agg")
+            matplotlib.use('agg') # use agg backend to stop python stealing focus when plotting
+
+        import matplotlib.pyplot as plt
+        import matplotlib.gridspec as gridspec
+
+        # plt.rcParams.update({'font.size': 16})
+
+        # extract asteroid phase data from data, with units
+        alpha = np.array(data['phase_angle']) * u.deg
+        mag = np.array(data["reduced_mag"]) * u.mag
+        mag_err = np.array(data["merr"]) * u.mag
+
+        fig = plt.figure()
+        gs = gridspec.GridSpec(1,1)
+        ax1 = plt.subplot(gs[0,0])
+
+        # plot all the data from the SQL that goes into the fitting process
+        ax1.errorbar(data['phase_angle'],data['reduced_mag'],data['merr'], fmt='ko',label="fitted data",zorder=0,markersize="2")
+        # s1=ax1.scatter(data_filt['phase_angle'],data_filt['reduced_mag'],c=data_filt['mjd'],s=10)
+
+        # highlight rejected data
+        alpha_reject = np.concatenate([np.array(data_zero_err['phase_angle']),np.array(data_small_err['phase_angle']),np.array(data_gal['phase_angle'])])
+        print(alpha_reject)
+        mag_reject = np.concatenate([np.array(data_zero_err['reduced_mag']),np.array(data_small_err['reduced_mag']),np.array(data_gal['reduced_mag'])])
+
+        if self.mag_diff_flag:
+            #plot objects dropped in initial cut
+            alpha_reject = np.append(alpha_reject,np.array(data_diff['phase_angle']))
+            mag_reject = np.append(mag_reject,np.array(data_diff['reduced_mag']))
+
+        # plot iterative fits and cuts
+        alpha_fit=np.linspace(np.amin(alpha),np.amax(alpha),100)
+        print(label_iter_list)
+        print(model_iter_list)
+        # print(k)
+        for j in range(len(label_iter_list)):
+            print(j,label_iter_list[j])
+            alpha_reject = np.append(alpha_reject,np.array(alpha_cut_iter_list[j]))
+            mag_reject = np.append(mag_reject,np.array(mag_cut_iter_list[j]))
+            if j==0 or j==len(label_iter_list)-1:
+                ax1.plot(alpha_fit,model_iter_list[j](alpha_fit),label=label_iter_list[j].split(". ")[-1])
+
+        # ax1.scatter(alpha_reject,mag_reject,edgecolor='r',facecolor="none",marker="o",s=50,label="rejected data".format(len(mag_reject)))
+        ax1.scatter(alpha_reject,mag_reject,c='r',s=10,marker = "x",label="rejected data".format(len(mag_reject)))
+
+        ax1.set_xlabel('alpha(degrees)')
+        ax1.set_ylabel('reduced mag')
+        ax1.invert_yaxis()
+        ax1.legend()
+
+        ax1.set_title("{}_{}_{}_{}_{}".format(os.path.basename(__file__).split('.')[0],self.file_identifier,model_name,self.clip_label,filt))
+        plt.tight_layout()
+
+        if self.save_fig:
+            fname="{}/{}_{}_{}_{}_{}_fancy{}.{}".format(self.save_path,os.path.basename(__file__).split('.')[0],self.file_identifier,model_name,self.clip_label,filt,self.save_file_suffix,self.save_file_type)
+            print(fname)
+            plt.savefig(fname, bbox_inches='tight')
+
+        if self.show_fig:
+            plt.show()
+        else:
+            plt.close()
+
+        plt.style.use('default')
 
         return
 
@@ -681,7 +816,7 @@ class phase_fit():
                     if k==0:
                         # for first iteration start with the predicted HG mag (Bowell 1989)
                         model=HG(H = H_abs_mag * u.mag, G = G_slope)
-                        model_str="predicted mag HG"
+                        model_str="astorb HG"
                         param_names=model.param_names
                         params=model.parameters
 
@@ -832,8 +967,14 @@ class phase_fit():
                                 # self.plot_phase_fit_iteration(model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
                                 # data_filt,data_zero_err,data_small_err,data_gal,data_diff)
 
+                                # self.plot_phase_fit_iteration2(model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
+                                # data_filt,data_zero_err,data_small_err,data_gal,data_diff)
+
                                 self.plot_phase_fit_iteration_2panel(model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
                                 data_filt,data_zero_err,data_small_err,data_gal,data_diff)
+
+                                # self.plot_phase_fit_fancy(model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
+                                # data_filt,data_zero_err,data_small_err,data_gal,data_diff)
 
                             # # save data that was used to fit to file
                             # data_clip_file="results_analysis/fit_data/df_data_{}{}_{}.csv".format(self.mpc_number,ms,filt)
