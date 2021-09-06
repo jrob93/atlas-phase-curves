@@ -47,13 +47,8 @@ else:
 # add options for push and plot flags
 
 fit = sbpy_phase_fit.phase_fit(mpc_number,name,
-<<<<<<< Updated upstream
 # push_fit_flag=False,plot_fig_flag=False,save_fig_flag=False,
 push_fit_flag=False,plot_fig_flag=True,save_fig_flag=True,
-=======
-push_fit_flag=False,plot_fig_flag=True,save_fig_flag=True,
-# push_fit_flag=False,plot_fig_flag=False,save_fig_flag=False,
->>>>>>> Stashed changes
 # show_fig_flag=True,
 hide_warning_flag=warning_flag,
 save_path="results_analysis/calculate_phase_figs",
