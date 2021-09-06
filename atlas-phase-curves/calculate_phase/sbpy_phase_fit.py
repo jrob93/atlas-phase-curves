@@ -146,7 +146,12 @@ class phase_fit():
         print(self.df_obj_datafit)
 
         # all objects in the db have a unique orbital_elements_id - retrieve this from db using the mpc_number or name
-        self.orbital_elements_id=get_orb_elements_id(self.cnx1,self.mpc_number,self.name)
+        try:
+            self.orbital_elements_id=get_orb_elements_id(self.cnx1,self.mpc_number,self.name)
+        except:
+            print("Cannot find object {}, {} in database".format(self.mpc_number,self.name))
+            self.orbital_elements_id = None
+            return
 
         # option to suppress warnings being shown to the screen
         if hide_warning_flag==1:
@@ -770,6 +775,10 @@ class phase_fit():
 
     def calculate(self):
         """calculate the phase curves on the phase_fit object"""
+
+        if self.orbital_elements_id is None:
+            print("object not in db, nothing to fit")
+            return
 
         # get the object observation data, cutting on date range and dropping rows with nan
         data_all_filt=self.get_obj_data(self.cnx1,self.orbital_elements_id,self.start_date,self.end_date)
