@@ -106,6 +106,22 @@ def load_mahlke_db(
 
     return df
 
+def load_schemel_db(
+    fname="/Users/jrobinson/asteroid_databases/schemel2021_trojans/schemel2021_trojans.txt",
+    nrows=None):
+
+    """
+    """
+
+    label_list=np.load("{}/database_meta_files/label_list_schemel2021.npy".format(abs_path))
+    byte_list=np.load("{}/database_meta_files/byte_list_schemel2021.npy".format(abs_path))
+    byte_list=[tuple(x) for x in byte_list] # np save and load doesn't preserve the tuples?
+
+    df=pd.read_fwf(fname,skiprows=42,colspecs=byte_list,names=label_list,index_col=False,nrows=nrows)
+
+    return df
+
+
 def load_mpcorb_db(
     fname="/Users/jrobinson/asteroid_databases/mpcorb/MPCORB.DAT",
     nrows=None):
