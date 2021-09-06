@@ -30,6 +30,7 @@ class solar_apparitions():
     mjd_jd = 2400000.5 # conversion from MJD to JD
     # G = 6.693e-11 # Newton's Gravitational Constant, m3⋅kg−1⋅s−2
     # M_sun = # Mass of the sun
+    year_days = 365.25
 
     def __init__(self,
         mpc_number=False,
@@ -57,8 +58,8 @@ class solar_apparitions():
         self.eph_load_path = eph_load_path
         self.data_fname = "{}/df_data_{}.csv".format(data_load_path,self.obj_id_save)
         self.eph_fname = "{}/df_eph_{}.csv".format(eph_load_path,self.obj_id_save)
-        print(self.data_fname)
-        print(self.eph_fname)
+        # print(self.data_fname)
+        # print(self.eph_fname)
 
         # Option to delete existing data files
         if reload:
@@ -190,7 +191,7 @@ class solar_apparitions():
         # we can check based on gaps in time as well as drops in elongation
         if period:
             xdiff = np.diff(self.xdata)
-            synodic_period = (period / ((period / 1.0) - 1.0))*365.0 # CHECK THIS https://en.wikipedia.org/wiki/Elongation_(astronomy)
+            synodic_period = (period / ((period / 1.0) - 1.0))*self.year_days # CHECK THIS https://en.wikipedia.org/wiki/Elongation_(astronomy)
             print("synodic period = {}".format(synodic_period))
             # mask = (ydiff<sol_elong_diff) | (xdiff>synodic_period)
             # mask = (ydiff<sol_elong_diff) & (xdiff>synodic_period/2.0)

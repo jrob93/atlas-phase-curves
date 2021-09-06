@@ -25,6 +25,7 @@ import warnings
 
 from calculate_phase.atlas_SQL_query_df import atlas_SQL_query,get_orb_elements_id,get_unique_ids,atlas_SQL_query_orbid
 from calculate_phase.atlas_database_connection import database_connection
+import calculate_phase.solar_apparitions as sa
 
 class phase_fit():
 
@@ -90,7 +91,7 @@ class phase_fit():
         save_file_type="png",
         push_fit_flag=False,plot_fig_flag=False,show_fig_flag=False,save_fig_flag=False,hide_warning_flag=False,
         start_date=False,end_date=False,
-        mag_diff_flag=False,
+        mag_diff_flag=False, # DEFAULT THIS TO BE TRUE?
         H_abs_mag_o=False,H_abs_mag_c=False,
         model_list=["HG", "HG1G2", "HG12", "HG12_Pen16"], # ADD LinearPhaseFunc here as default?
         filter_list=["o","c"],
@@ -217,7 +218,10 @@ class phase_fit():
             a.primaryId,
             a.updated,
             o.G_slope,
-            o.H_abs_mag
+            o.H_abs_mag,
+            o.a_semimajor_axis,
+            o.e_eccentricity,
+            o.i_inclination_deg
             FROM atlas_objects a, orbital_elements o WHERE a.orbital_elements_id=%(orbid)s AND o.mpc_number=%(mpc_num)s;
             """ % locals()
         else:
@@ -235,7 +239,10 @@ class phase_fit():
             a.primaryId,
             a.updated,
             o.G_slope,
-            o.H_abs_mag
+            o.H_abs_mag,
+            o.a_semimajor_axis,
+            o.e_eccentricity,
+            o.i_inclination_deg
             FROM atlas_objects a, orbital_elements o WHERE a.orbital_elements_id=%(orbid)s AND o.name="%(name)s";
             """ % locals()
         # print(qry_obj1)
@@ -690,6 +697,20 @@ class phase_fit():
         self.mpc_number=df_obj.iloc[0]['mpc_number']
         self.name=df_obj.iloc[0]['name']
 
+        # Find the solar apparitions from elongation
+        # ADD CONDITIONS ON ORBIT ON WHETHER OR NOT TO USE JPL?
+        # or just ignore results in the database for q < 1.3 AU
+        print(df_obj[["a_semimajor_axis","e_eccentricity","i_inclination_deg"]])
+        orbital_period_yrs = df_obj.iloc[0]["a_semimajor_axis"]**1.5
+        sol = sa.solar_apparitions(mpc_number = self.mpc_number, name = self.name, df_data = data_all_filt)
+        epochs = sol.solar_elongation(-1.0,period = orbital_period_yrs)
+        # epochs = sol.solar_elongation_JPL(JPL_step="7d")
+
+        print(epochs)
+        N_app = len(epochs)-1 # number of apparitions detected in both filters
+        df_obj["N_apparitions"]=N_app
+
+
         # do a seperate fit for data in each filter
         for filt in self.filters:
 
@@ -801,6 +822,7 @@ class phase_fit():
                 # initialise the data that we will iteratively fit and cut
                 data=data_filt
                 data=data.sort_values("phase_angle") # ensure that the dataframe is in order for plotting
+                # data=data.sort_values("mjd") # ensure that the dataframe is in date order for finding epochs
 
                 # iteratively fit and cut data, for a maximum of max_iters times
                 k=0
@@ -920,7 +942,37 @@ class phase_fit():
                             OC_std = np.std(residuals)
                             OC_range = np.absolute(np.amax(residuals)-np.amin(residuals))
 
-                            # CHECK RESIDUALS FOR INDIVIDULA EPOCHS HERE?
+                            # residuals for each epoch
+                            sort_mask = np.argsort(data["mjd"])
+                            mjd = np.array(data["mjd"])[sort_mask]
+                            residuals = np.array(residuals)[sort_mask]
+                            res_med_list = []
+                            for i in range(1,len(epochs)):
+                                m1 = epochs[i-1]
+                                m2 = epochs[i]
+                                N_days_epoch = m2-m1
+                                date_mask = ((mjd>=m1) & (mjd<m2))
+                                N_data_epoch = len(mjd[date_mask])
+                                if N_data_epoch>len(pc): # need at least the same of data points as number of parameters
+                                    res_med = np.median(residuals[date_mask])
+                                    res_med_list.append(res_med)
+                                    # print(m1,m2,N_days_epoch,N_data_epoch,res_med)
+                            res_med_list = np.array(res_med_list)
+                            print(res_med_list)
+                            app_res_med = np.median(res_med_list) # median of the median residual for all apparitions
+                            app_res_std = np.std(res_med_list) # std of the median residual for all apparitions
+                            app_res_mean = np.mean(res_med_list) # mean of the median residual for all apparitions
+                            app_res_range = np.absolute(np.amax(res_med_list)-np.amin(res_med_list)) # maximum difference between apparition residuals
+
+                            print("total number of epochs = {}".format(N_app))
+                            print("median median epoch residual = {}".format(app_res_med))
+                            print("mean median epoch residual = {}".format(app_res_mean))
+                            print("std median epoch residual = {}".format(app_res_std))
+                            print("range median epoch residual = {}".format(app_res_range))
+
+                            # # plot epochs
+                            self.plot_epochs(model_func,model_name,model,data,data_all_filt,epochs,filt)
+                            # exit()
 
                             # check for errors
                             if N_mag_err>N_data_fit:
@@ -949,12 +1001,19 @@ class phase_fit():
                             df_obj["phase_curve_OC_std{}_{}".format(ms,filt)]=OC_std
                             df_obj["phase_curve_OC_range{}_{}".format(ms,filt)]=OC_range
 
+                            df_obj["phase_curve_N_cut{}_{}".format(ms,filt)]=N_data_cut
+
+                            df_obj["phase_curve_app_res_med{}_{}".format(ms,filt)]=app_res_med
+                            df_obj["phase_curve_app_res_std{}_{}".format(ms,filt)]=app_res_std
+                            df_obj["phase_curve_app_res_range{}_{}".format(ms,filt)]=app_res_range
+
                             for p in range(len(pc)):
                                 df_obj["phase_curve_{}{}_{}".format(pc[p],ms,filt)]=params[p]
                                 df_obj["phase_curve_{}_err{}_{}".format(pc[p],ms,filt)]=param_err_x[p]
 
                             # might want to record a different set of parameters in df obj for LinearPhaseFunc
                             # if model_name=="LinearPhaseFunc":
+                            # if "LinearPhaseFunc" in model_list:
                                 # Set only the LinearPhaseFunc parameters
 
                             if self.plot_fig:

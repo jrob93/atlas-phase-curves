@@ -389,7 +389,7 @@ def mpcorb_load_unpack_save(fname="/Users/jrobinson/asteroid_databases/mpcorb/MP
     df = unpack_mpcorb_flag(df) # unpack orbit flags
 
     # print("unpack epochs")
-    # df = unpack_mpcorb_epoch(df) # unpack the epochs
+    df = unpack_mpcorb_epoch(df) # unpack the epochs THIS IS VERY SLOW!
 
     print("unpack names")
     df[["name","mpc_number"]] = [unpack_mpc_name_num(x) for x in df["num_name"]]
