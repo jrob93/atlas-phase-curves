@@ -47,8 +47,13 @@ else:
 # add options for push and plot flags
 
 fit = sbpy_phase_fit.phase_fit(mpc_number,name,
+<<<<<<< Updated upstream
 # push_fit_flag=False,plot_fig_flag=False,save_fig_flag=False,
 push_fit_flag=False,plot_fig_flag=True,save_fig_flag=True,
+=======
+push_fit_flag=False,plot_fig_flag=True,save_fig_flag=True,
+# push_fit_flag=False,plot_fig_flag=False,save_fig_flag=False,
+>>>>>>> Stashed changes
 # show_fig_flag=True,
 hide_warning_flag=warning_flag,
 save_path="results_analysis/calculate_phase_figs",
@@ -56,6 +61,7 @@ save_path="results_analysis/calculate_phase_figs",
 # save_path="results_analysis/calculate_phase_figs_0-005",
 start_date=start_date, end_date=end_date,
 model_list=["HG"],
+# model_list=["HG12_Pen16"],
 # filter_list=["o"],
 filter_list=filters,
 # save_file_type="pdf",
@@ -63,3 +69,8 @@ mag_diff_flag=True,save_file_suffix="_mag_diff"
 )
 df=fit.calculate()
 print(df.iloc[0].to_string())
+if name:
+    objid="_".join(name.split(" "))
+else:
+    objid = int(mpc_number)
+print("open results_analysis/calculate_phase_figs/sbpy_phase_fit_{}_HG*".format(objid))
