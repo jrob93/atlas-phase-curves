@@ -183,7 +183,7 @@ def atlas_SQL_query_orbid_expname(cnx,orbital_elements_id,filter="all"):
     SELECT d.expname,o.dec_deg,o.ra_deg,d.mjd, d.m,  d.dfitmag as merr, a.filter,
      o.observer_distance, o.heliocentric_distance, o.phase_angle,
       d.m - 5*log10(o.heliocentric_distance*o.observer_distance) as reduced_mag,
-       o.apparent_mag, o.galactic_latitude, o.sun_obs_target_angle
+       o.apparent_mag, o.galactic_latitude, o.sun_obs_target_angle, d.orbfit_separation_arcsec
     FROM
         dophot_photometry d,
         orbfit_positions o,
