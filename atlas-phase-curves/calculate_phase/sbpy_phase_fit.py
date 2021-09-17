@@ -23,7 +23,7 @@ import warnings
 #     from calculate_phase.atlas_SQL_query_df import atlas_SQL_query
 #     from calculate_phase.atlas_database_connection import database_connection
 
-from calculate_phase.atlas_SQL_query_df import atlas_SQL_query,get_orb_elements_id,get_unique_ids,atlas_SQL_query_orbid
+from calculate_phase.atlas_SQL_query_df import atlas_SQL_query,get_orb_elements_id,get_unique_ids,atlas_SQL_query_orbid_expname
 from calculate_phase.atlas_database_connection import database_connection
 import calculate_phase.solar_apparitions as sa
 
@@ -41,6 +41,7 @@ class phase_fit():
     mag_med_cut=2 # initial magnitude difference cut on initial HG model
     phase_lin_min=5 # minimum phase angle for linear fit - MAKE OPTIONAL?
     phase_lin_max=25 # maximum phase angle for linear fit
+    orbfit_sep_cut=1.0 # maximum allowed orbfit separation for matching dophot_photometry (arcsec)
 
     # set the clipping method for the phase_fit class
     def data_clip_sigma(self,data,data_predict,low=std,high=std):
@@ -165,7 +166,8 @@ class phase_fit():
         """load data to be fitted, loads both filters (o & c)"""
 
         # query the database for photometry
-        data_all_filt=atlas_SQL_query_orbid(cnx,orbid)
+        # data_all_filt=atlas_SQL_query_orbid(cnx,orbid)
+        data_all_filt=atlas_SQL_query_orbid_expname(cnx,orbid)
 
         N_data1 = len(data_all_filt)
         print("data before date cut = {}".format(N_data1))
@@ -610,7 +612,7 @@ class phase_fit():
         return
 
     def plot_phase_fit_fancy(self,model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
-    data_filt,data_zero_err,data_small_err,data_gal,data_diff):
+    data_filt,data_zero_err,data_small_err,data_gal,data_diff,data_orbfit):
 
         if not self.show_fig:
             import matplotlib
@@ -636,9 +638,13 @@ class phase_fit():
         # s1=ax1.scatter(data_filt['phase_angle'],data_filt['reduced_mag'],c=data_filt['mjd'],s=10)
 
         # highlight rejected data
-        alpha_reject = np.concatenate([np.array(data_zero_err['phase_angle']),np.array(data_small_err['phase_angle']),np.array(data_gal['phase_angle'])])
+        alpha_reject = np.concatenate([np.array(data_zero_err['phase_angle']),
+        np.array(data_small_err['phase_angle']),np.array(data_gal['phase_angle']),
+        np.array(data_orbfit['phase_angle'])])
         print(alpha_reject)
-        mag_reject = np.concatenate([np.array(data_zero_err['reduced_mag']),np.array(data_small_err['reduced_mag']),np.array(data_gal['reduced_mag'])])
+        mag_reject = np.concatenate([np.array(data_zero_err['reduced_mag']),
+        np.array(data_small_err['reduced_mag']),np.array(data_gal['reduced_mag']),
+        np.array(data_orbfit['reduced_mag'])])
 
         if self.mag_diff_flag:
             #plot objects dropped in initial cut
@@ -658,6 +664,13 @@ class phase_fit():
                 ax1.plot(alpha_fit,model_iter_list[j](alpha_fit),label=label_iter_list[j].split(". ")[-1])
 
         # ax1.scatter(alpha_reject,mag_reject,edgecolor='r',facecolor="none",marker="o",s=50,label="rejected data".format(len(mag_reject)))
+
+        # remove any extreme outliers for plotting
+        med_mag = np.median(data['reduced_mag'])
+        mask=(np.absolute(mag_reject-med_mag)<10)
+        alpha_reject=alpha_reject[mask]
+        mag_reject=mag_reject[mask]
+
         ax1.scatter(alpha_reject,mag_reject,c='r',s=10,marker = "x",label="rejected data".format(len(mag_reject)))
 
         ax1.set_xlabel('alpha(degrees)')
@@ -773,6 +786,8 @@ class phase_fit():
 
         return
 
+# migrate all these long plotting functions above to a different file?
+
     def calculate(self):
         """calculate the phase curves on the phase_fit object"""
 
@@ -854,6 +869,12 @@ class phase_fit():
             # cut starting data for this filter
             print("{} starting data".format(len(data_filt)))
 
+            # drop measurements with large orbfit separation
+            mask_orbfit = np.absolute(data_filt["orbfit_separation_arcsec"])>self.orbfit_sep_cut
+            data_orbfit=data_filt[mask_orbfit]
+            data_filt=data_filt[~mask_orbfit]
+            print("{} after orbfit sep cut".format(len(data_filt)))
+
             # drop any measurements with zero uncertainty
             mask_zero = data_filt['merr']==0
             data_zero_err=data_filt[mask_zero]
@@ -873,12 +894,13 @@ class phase_fit():
             print("{} data after cuts".format(len(data_filt)))
 
             # RECORD THE NUMBER OF DATA POINTS THAT HAVE BEEN CUT
+            N_data_orbfit = len(data_orbfit)
             N_data_zero_err = len(data_zero_err)
             N_data_small_err = len(data_small_err)
             N_data_gal = len(data_gal)
-            N_data_cut = N_data_zero_err + N_data_small_err + N_data_gal
-            print("CUT data_zero_err = {}\nCUT data_small_err = {}\nCUT data_gal = {}".format(
-            N_data_zero_err,N_data_small_err,N_data_gal))
+            N_data_cut = N_data_orbfit + N_data_zero_err + N_data_small_err + N_data_gal
+            print("CUT data_orbfit = {}\nCUT data_zero_err = {}\nCUT data_small_err = {}\nCUT data_gal = {}".format(
+            N_data_orbfit,N_data_zero_err,N_data_small_err,N_data_gal))
             print("TOTAL CUT N_data_cut = {}".format(N_data_cut))
 
             # if no data remains after cuts, then nothing can be fit
@@ -1129,11 +1151,13 @@ class phase_fit():
                                 # self.plot_phase_fit_iteration2(model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
                                 # data_filt,data_zero_err,data_small_err,data_gal,data_diff)
 
-                                self.plot_phase_fit_iteration_2panel(model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
-                                data_filt,data_zero_err,data_small_err,data_gal,data_diff)
-
-                                # self.plot_phase_fit_fancy(model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
+                                # self.plot_phase_fit_iteration_2panel(model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
                                 # data_filt,data_zero_err,data_small_err,data_gal,data_diff)
+
+                                self.plot_phase_fit_fancy(model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
+                                data_filt,data_zero_err,data_small_err,data_gal,data_diff,data_orbfit)
+
+                                # simplify plotting by passing a list of dataframes of cut data?
 
                             # # save data that was used to fit to file
                             # data_clip_file="results_analysis/fit_data/df_data_{}{}_{}.csv".format(self.mpc_number,ms,filt)
