@@ -1070,10 +1070,6 @@ class phase_fit():
                             print("std median epoch residual = {}".format(app_res_std))
                             print("range median epoch residual = {}".format(app_res_range))
 
-                            # # plot epochs
-                            self.plot_epochs(model_func,model_name,model,data,data_all_filt,epochs,filt)
-                            # exit()
-
                             # check for errors
                             if N_mag_err>N_data_fit:
                                 # ERROR in calculating N-mag_err?
@@ -1134,6 +1130,10 @@ class phase_fit():
 
                                 # self.plot_phase_fit_fancy(model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
                                 # data_filt,data_zero_err,data_small_err,data_gal,data_diff)
+
+                                # plot epochs
+                                self.plot_epochs(model_func,model_name,model,data,data_all_filt,epochs,filt)
+                                # exit()
 
                             # # save data that was used to fit to file
                             # data_clip_file="results_analysis/fit_data/df_data_{}{}_{}.csv".format(self.mpc_number,ms,filt)
