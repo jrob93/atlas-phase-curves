@@ -96,7 +96,8 @@ class phase_fit():
         H_abs_mag_o=False,H_abs_mag_c=False,
         model_list=["HG", "HG1G2", "HG12", "HG12_Pen16"], # ADD LinearPhaseFunc here as default?
         filter_list=["o","c"],
-        tab_name="atlas_phase_fits"):
+        tab_name="atlas_phase_fits",
+        connection=True):
 
         # set up the class
         # define object and some flags
@@ -132,13 +133,14 @@ class phase_fit():
         self.H_abs_mag_o=H_abs_mag_o
         self.H_abs_mag_c=H_abs_mag_c
 
-        # cnx1 is the connection where we retrieve the data from
-        self.cnx1=database_connection().connect()
-        self.cursor1 = self.cnx1.cursor()
+        if connection:
+            # cnx1 is the connection where we retrieve the data from
+            self.cnx1=database_connection().connect()
+            self.cursor1 = self.cnx1.cursor()
 
-        # cnx2 is the connection where we push the fit data to
-        self.cnx2 = self.cnx1
-        self.cursor2 = self.cursor1
+            # cnx2 is the connection where we push the fit data to
+            self.cnx2 = self.cnx1
+            self.cursor2 = self.cursor1
 
         self.tab_name=tab_name # table name within the database
 
@@ -150,9 +152,9 @@ class phase_fit():
         try:
             self.orbital_elements_id=get_orb_elements_id(self.cnx1,self.mpc_number,self.name)
         except:
-            print("Cannot find object {}, {} in database".format(self.mpc_number,self.name))
+            # print("Cannot find object {}, {} in database".format(self.mpc_number,self.name))
             self.orbital_elements_id = None
-            return
+            # return
 
         # option to suppress warnings being shown to the screen
         if hide_warning_flag==1:
@@ -695,6 +697,75 @@ class phase_fit():
 
         return
 
+    def plot_phase_fit_fancy2(self,model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
+    data_filt,data_cut_list):
+
+        if not self.show_fig:
+            import matplotlib
+            print("use agg")
+            matplotlib.use('agg') # use agg backend to stop python stealing focus when plotting
+
+        import matplotlib.pyplot as plt
+        import matplotlib.gridspec as gridspec
+
+        # plt.rcParams.update({'font.size': 16})
+
+        # extract asteroid phase data from data, with units
+        alpha = np.array(data['phase_angle']) * u.deg
+        mag = np.array(data["reduced_mag"]) * u.mag
+        mag_err = np.array(data["merr"]) * u.mag
+
+        fig = plt.figure()
+        gs = gridspec.GridSpec(1,1)
+        ax1 = plt.subplot(gs[0,0])
+
+        # plot all the data from the SQL that goes into the fitting process
+        ax1.errorbar(data['phase_angle'],data['reduced_mag'],data['merr'], fmt='ko',label="fitted data",zorder=0,markersize="2")
+        # s1=ax1.scatter(data_filt['phase_angle'],data_filt['reduced_mag'],c=data_filt['mjd'],s=10)
+
+        # highlight rejected data
+        alpha_reject = []
+        mag_reject = []
+        for df in data_cut_list:
+            alpha_reject += df["phase_angle"]
+            mag_reject += df["reduced_mag"]
+
+        # plot iterative fits and cuts
+        alpha_fit=np.linspace(np.amin(alpha),np.amax(alpha),100)
+        print(label_iter_list)
+        print(model_iter_list)
+        # print(k)
+        for j in range(len(label_iter_list)):
+            print(j,label_iter_list[j])
+            alpha_reject = np.append(alpha_reject,np.array(alpha_cut_iter_list[j]))
+            mag_reject = np.append(mag_reject,np.array(mag_cut_iter_list[j]))
+            if j==0 or j==len(label_iter_list)-1:
+                ax1.plot(alpha_fit,model_iter_list[j](alpha_fit),label=label_iter_list[j].split(". ")[-1])
+
+        ax1.scatter(alpha_reject,mag_reject,c='r',s=10,marker = "x",label="rejected data".format(len(mag_reject)))
+
+        ax1.set_xlabel('alpha(degrees)')
+        ax1.set_ylabel('reduced mag')
+        ax1.invert_yaxis()
+        ax1.legend()
+
+        ax1.set_title("{}_{}_{}_{}_{}".format(os.path.basename(__file__).split('.')[0],self.file_identifier,model_name,self.clip_label,filt))
+        plt.tight_layout()
+
+        if self.save_fig:
+            fname="{}/{}_{}_{}_{}_{}_fancy{}.{}".format(self.save_path,os.path.basename(__file__).split('.')[0],self.file_identifier,model_name,self.clip_label,filt,self.save_file_suffix,self.save_file_type)
+            print(fname)
+            plt.savefig(fname, bbox_inches='tight')
+
+        if self.show_fig:
+            plt.show()
+        else:
+            plt.close()
+
+        plt.style.use('default')
+
+        return
+
     def plot_epochs(self,model_func,model_name,model,data,data_all_filt,epochs,filt):
         """
         """
@@ -1210,34 +1281,34 @@ class phase_fit():
 
     def calculate_forced_phot(self,data_all_filt,df_obj):
         """calculate the phase curves for an object where forced photometry has been parse_asteroid
-        data_all_filt = pandas dataframe with columns for: mjd, reduced_mag, merr, phase_angle, galactic_latitude (optional)
+        data_all_filt = pandas dataframe with columns for: mjd, reduced_mag, merr, phase_angle, (optional: galactic_latitude, sun_obs_target_angle)
         df_obj = dataframe containing information on the object: name, mpc_number, H_abs_mag, G_slope,
                 a_semimajor_axis, e_eccentricity, i_inclination_deg
         """
 
-        if self.orbital_elements_id is None:
-            print("object not in db, nothing to fit")
-            return
-
         # cut the data on date range and drop nans
         if self.start_date:
             data_all_filt=data_all_filt[data_all_filt['mjd']>float(t_start)]
-        if delf.end_date:
+        if self.end_date:
             data_all_filt=data_all_filt[data_all_filt['mjd']<float(t_end)]
         data_all_filt=data_all_filt.dropna()
 
-        # create an empty metadata frame
-        df_obj=self.df_obj_datafit
+        # combine any information in the passed df_obj with the standard columns
+        df_obj=self.df_obj_datafit.append(df_obj)
+        print(df_obj)
 
         # update the detection_count, dropping nans and outside date range
         df_obj["detection_count"]=len(data_all_filt) # note that atlas_objects may not have up to date detection count, call update_atlas_objects
 
-        # Find the solar apparitions from elongation
-        print(df_obj[["a_semimajor_axis","e_eccentricity","i_inclination_deg"]])
-        orbital_period_yrs = df_obj.iloc[0]["a_semimajor_axis"]**1.5
-        sol = sa.solar_apparitions(mpc_number = self.mpc_number, name = self.name, df_data = data_all_filt)
-        epochs = sol.solar_elongation(-1.0,period = orbital_period_yrs)
-        # epochs = sol.solar_elongation_JPL(JPL_step="7d")
+        if "sun_obs_target_angle" in list(data_all_filt):
+            # Find the solar apparitions from elongation
+            print(df_obj[["a_semimajor_axis","e_eccentricity","i_inclination_deg"]])
+            orbital_period_yrs = df_obj.iloc[0]["a_semimajor_axis"]**1.5
+            sol = sa.solar_apparitions(mpc_number = self.mpc_number, name = self.name, df_data = data_all_filt)
+            # epochs = sol.solar_elongation(-1.0,period = orbital_period_yrs)
+            epochs = sol.solar_elongation_JPL(JPL_step="7d")
+        else:
+            epochs = []
 
         print(epochs)
         N_app = len(epochs)-1 # number of apparitions detected in both filters
@@ -1247,6 +1318,8 @@ class phase_fit():
         for filt in self.filters:
 
             # use guess values of H and G values for the predicted fit
+            G_slope=float(df_obj.iloc[0]['G_slope'])
+            H_abs_mag=float(df_obj.iloc[0]['H_abs_mag'])
             print("filt = {}\nG_slope = {}\nH_abs_mag = {}".format(filt,G_slope,H_abs_mag))
 
             # do filter correction from V band (Heinze et al. 2020) - see also Erasmus et al 2020 for the c-o colours of S and C types (0.388 and 0.249 respectively)
@@ -1270,16 +1343,21 @@ class phase_fit():
             # cut starting data for this filter
             print("{} starting data".format(len(data_filt)))
 
+            data_cut_list = []
+
             # # drop measurements with large orbfit separation
             # mask_orbfit = np.absolute(data_filt["orbfit_separation_arcsec"])>self.orbfit_sep_cut
             # data_orbfit=data_filt[mask_orbfit]
             # data_filt=data_filt[~mask_orbfit]
             # print("{} after orbfit sep cut".format(len(data_filt)))
-            # # drop any measurements with zero uncertainty
-            # mask_zero = data_filt['merr']==0
-            # data_zero_err=data_filt[mask_zero]
-            # data_filt=data_filt[~mask_zero]
-            # print("{} after zero error cut".format(len(data_filt)))
+
+            # drop any measurements with zero uncertainty
+            mask_zero = data_filt['merr']==0
+            data_zero_err=data_filt[mask_zero]
+            data_filt=data_filt[~mask_zero]
+            print("{} after zero error cut".format(len(data_filt)))
+            data_cut_list.append(data_zero_err)
+
             # # drop measurements with small (or zero) uncertainty
             # mask_err = data_filt['merr']<self.mag_err_small
             # data_small_err=data_filt[mask_err]
@@ -1292,6 +1370,7 @@ class phase_fit():
                 data_gal=data_filt[mask_gal]
                 data_filt=data_filt[~mask_gal]
                 print("{} after galactic plane cut".format(len(data_filt)))
+                data_cut_list.append(data_gal)
 
             print("{} data after cuts".format(len(data_filt)))
 
@@ -1365,7 +1444,7 @@ class phase_fit():
                     if k==0:
                         # for first iteration start with the predicted HG mag (Bowell 1989)
                         model=HG(H = H_abs_mag * u.mag, G = G_slope)
-                        model_str="astorb HG"
+                        model_str="JPL HG"
                         param_names=model.param_names
                         params=model.parameters
 
@@ -1449,51 +1528,45 @@ class phase_fit():
                             N_data_cut = len(data_filt) - N_data_fit
                             print("N_data_fit = {}\nN_data_cut = {}".format(N_data_fit,N_data_cut))
 
-                            # check number of data points cut and fit all add up to starting data
-                            N_data_tot = N_data_zero_err + N_data_small_err + N_data_gal + N_alpha_lin + N_data_cut + N_data_fit
-                            print(N_data_zero_err,N_data_small_err,N_data_gal,N_alpha_lin,N_data_cut,N_data_fit)
-                            print("N_data_tot = {}\nN_data_start = {}".format(N_data_tot,N_data_start))
-                            if N_data_tot!=N_data_start:
-                                print("Error, number of data points doesn't add up")
-                                logging.warning("{} - {} - {} - {} - N_data_tot!=N_data_start".format(self.mpc_number,self.name,model_name,filt))
-
                             # calculate the residual properties
                             residuals = mag - model(alpha)
                             OC_mean = np.mean(residuals)
                             OC_std = np.std(residuals)
                             OC_range = np.absolute(np.amax(residuals)-np.amin(residuals))
 
-                            # residuals for each epoch
-                            sort_mask = np.argsort(data["mjd"])
-                            mjd = np.array(data["mjd"])[sort_mask]
-                            residuals = np.array(residuals)[sort_mask]
-                            res_med_list = []
-                            for i in range(1,len(epochs)):
-                                m1 = epochs[i-1]
-                                m2 = epochs[i]
-                                N_days_epoch = m2-m1
-                                date_mask = ((mjd>=m1) & (mjd<m2))
-                                N_data_epoch = len(mjd[date_mask])
-                                if N_data_epoch>len(pc): # need at least the same of data points as number of parameters
-                                    res_med = np.median(residuals[date_mask])
-                                    res_med_list.append(res_med)
-                                    # print(m1,m2,N_days_epoch,N_data_epoch,res_med)
-                            res_med_list = np.array(res_med_list)
-                            print(res_med_list)
-                            app_res_med = np.median(res_med_list) # median of the median residual for all apparitions
-                            app_res_std = np.std(res_med_list) # std of the median residual for all apparitions
-                            app_res_mean = np.mean(res_med_list) # mean of the median residual for all apparitions
-                            app_res_range = np.absolute(np.amax(res_med_list)-np.amin(res_med_list)) # maximum difference between apparition residuals
+                            if "sun_obs_target_angle" in list(data_all_filt):
+                                # residuals for each epoch
+                                sort_mask = np.argsort(data["mjd"])
+                                mjd = np.array(data["mjd"])[sort_mask]
+                                residuals = np.array(residuals)[sort_mask]
+                                res_med_list = []
+                                for i in range(1,len(epochs)):
+                                    m1 = epochs[i-1]
+                                    m2 = epochs[i]
+                                    N_days_epoch = m2-m1
+                                    date_mask = ((mjd>=m1) & (mjd<m2))
+                                    N_data_epoch = len(mjd[date_mask])
+                                    if N_data_epoch>len(pc): # need at least the same of data points as number of parameters
+                                        res_med = np.median(residuals[date_mask])
+                                        res_med_list.append(res_med)
+                                        # print(m1,m2,N_days_epoch,N_data_epoch,res_med)
+                                res_med_list = np.array(res_med_list)
+                                print(res_med_list)
+                                app_res_med = np.median(res_med_list) # median of the median residual for all apparitions
+                                app_res_std = np.std(res_med_list) # std of the median residual for all apparitions
+                                app_res_mean = np.mean(res_med_list) # mean of the median residual for all apparitions
+                                app_res_range = np.absolute(np.amax(res_med_list)-np.amin(res_med_list)) # maximum difference between apparition residuals
+                            else:
+                                app_res_med = np.nan
+                                app_res_std = np.nan
+                                app_res_mean = np.nan
+                                app_res_range = np.nan
 
                             print("total number of epochs = {}".format(N_app))
                             print("median median epoch residual = {}".format(app_res_med))
                             print("mean median epoch residual = {}".format(app_res_mean))
                             print("std median epoch residual = {}".format(app_res_std))
                             print("range median epoch residual = {}".format(app_res_range))
-
-                            # plot epochs
-                            self.plot_epochs(model_func,model_name,model,data,data_all_filt,epochs,filt)
-                            # exit()
 
                             # check for errors
                             if N_mag_err>N_data_fit:
@@ -1553,8 +1626,15 @@ class phase_fit():
                                 # self.plot_phase_fit_iteration_2panel(model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
                                 # data_filt,data_zero_err,data_small_err,data_gal,data_diff)
 
-                                self.plot_phase_fit_fancy(model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
-                                data_filt,data_zero_err,data_small_err,data_gal,data_diff,data_orbfit)
+                                # self.plot_phase_fit_fancy(model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
+                                # data_filt,data_zero_err,data_small_err,data_gal,data_diff,data_orbfit)
+
+                                self.plot_phase_fit_fancy2(model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
+                                data_filt,data_cut_list=[])
+
+                                # plot epochs
+                                self.plot_epochs(model_func,model_name,model,data,data_all_filt,epochs,filt)
+                                # exit()
 
                                 # simplify plotting by passing a list of dataframes of cut data?
 
