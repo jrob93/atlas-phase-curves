@@ -8,7 +8,8 @@ from sbpy.data import Names
 
 # define the path to this file so that database_meta_files can be loaded
 # figure out how to set this automatically when importing
-abs_path="/Users/jrobinson/atlas-phase-curves/atlas-phase-curves/tools"
+# abs_path="/Users/jrobinson/atlas-phase-curves/atlas-phase-curves/tools"
+abs_path="/home/astro/atlas-phase-curves/atlas-phase-curves/tools"
 
 #-------------------------------------------------------------------------------
 # database loading functions
