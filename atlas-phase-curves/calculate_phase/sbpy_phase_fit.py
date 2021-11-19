@@ -85,19 +85,20 @@ class phase_fit():
     db_columns=[d.rstrip() for d in db_columns]
 
     def __init__(self,
-        mpc_number=False,
-        name=False,
-        save_path=".",
-        save_file_suffix="",
-        save_file_type="png",
-        push_fit_flag=False,plot_fig_flag=False,show_fig_flag=False,save_fig_flag=False,hide_warning_flag=False,
-        start_date=False,end_date=False,
-        mag_diff_flag=False, # DEFAULT THIS TO BE TRUE?
-        H_abs_mag_o=False,H_abs_mag_c=False,
-        model_list=["HG", "HG1G2", "HG12", "HG12_Pen16"], # ADD LinearPhaseFunc here as default?
-        filter_list=["o","c"],
-        tab_name="atlas_phase_fits",
-        connection=True):
+        mpc_number=False, # mpc number of object to be fit (if available)
+        name=False, # name/designation of object
+        save_path=".", # location to save figures
+        save_file_suffix="", # add a suffix to saved files to customise their filenames if required
+        save_file_type="png", # file type for saving figures
+        push_fit_flag=False,plot_fig_flag=False,show_fig_flag=False,save_fig_flag=False,hide_warning_flag=False, # flags controlling plotting/saving of figures
+        start_date=False,end_date=False, # set a start date and end date to control selection of observations
+        mag_diff_flag=False, # Flag to perform an initial cut of observations based on magnitude difference from expected values. DEFAULT THIS TO BE TRUE?
+        H_abs_mag_o=False,H_abs_mag_c=False, # option to supply an initial guess of absolute magnitude in o and c filters
+        model_list=["HG", "HG1G2", "HG12", "HG12_Pen16"], # Which models to fit. ADD LinearPhaseFunc here as default?
+        filter_list=["o","c"], # which filters to fit
+        tab_name="atlas_phase_fits", # name of the sql table to save results
+        connection=True # flag to control if we establish a connection to the sql database or not
+        ):
 
         # set up the class
         # define object and some flags
@@ -133,6 +134,7 @@ class phase_fit():
         self.H_abs_mag_o=H_abs_mag_o
         self.H_abs_mag_c=H_abs_mag_c
 
+        # we do not want to set up a conenction if we are supplying the observations directly, i.e. using calculate_forced_phot
         if connection:
             # cnx1 is the connection where we retrieve the data from
             self.cnx1=database_connection().connect()

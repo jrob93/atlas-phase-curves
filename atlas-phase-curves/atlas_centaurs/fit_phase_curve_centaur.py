@@ -9,10 +9,15 @@ from astroquery.jplhorizons import Horizons
 from sbpy.data import Names
 from astropy.time import Time
 
-sys.path.append("/Users/jrobinson/atlas-phase-curves/atlas-phase-curves")
+# set the path so that we can import from the calculate_phase module
+# this automatic setting might need changed if you run this script from a different relative path
+package_path = "/".join(os.path.dirname(os.path.abspath(__file__)).split("/")[:-1])
+# sys.path.append("/Users/jrobinson/atlas-phase-curves/atlas-phase-curves")
+sys.path.append(package_path)
 from calculate_phase import sbpy_phase_fit
 importlib.reload(sbpy_phase_fit)
 
+# list of centaurs to analyse
 name_list = ["Hidalgo",
 "2016 ND21",
 "Chiron",
@@ -25,8 +30,8 @@ name_list = ["Hidalgo",
 "2013 XZ8",
 "2014 QA43"]
 
-data_path = "data"
-fname_save = "df_results.csv"
+data_path = "data" # location of the centaur data files, e.g. data/944 Hidalgo_ATLAS_Forced_Photometry_c_filter.csv. Note that spaces in file names can be problematic
+fname_save = "df_results.csv" # name of file where all the phase curve fits will be saved
 
 df_results = pd.DataFrame()
 
@@ -58,7 +63,7 @@ for name in name_list:
     df_obj["i_inclination_deg"] = float(el["incl"])
     print(df_obj)
 
-    # load and set up the photometry dataframe
+    # load and set up the photometry dataframe which contains all observations
     if mpc_number:
         load_name = "{} {}".format(mpc_number,name)
     else:
@@ -71,6 +76,7 @@ for name in name_list:
     data_all_filt = data_all_filt.rename(columns={"MJD":"mjd","alpha":"phase_angle","reduced_dmag":"merr"})
     print(data_all_filt)
 
+    # load a previously saved JPL horizons query if available, otherwise query to get object details
     JPL_file = "{}/{}_JPL_Horizons.csv".format(data_path,load_name)
     if os.path.isfile(JPL_file):
         print("load {}".format(JPL_file))
@@ -95,6 +101,8 @@ for name in name_list:
     print(data_all_filt)
     # exit()
 
+    # set up options for phase curve fit here, e.g. plotting and saving figures, models to fit, how to trim data points
+    # see calculate_phase/sbpy_phase_fit -> phase_fit.__init__ for more details
     fit = sbpy_phase_fit.phase_fit(mpc_number,name,
     plot_fig_flag=True,save_fig_flag=True,
     # show_fig_flag=True,
@@ -105,16 +113,20 @@ for name in name_list:
     mag_diff_flag=True,save_file_suffix="_mag_diff",
     connection=False
     )
+
+    # pass the observation data and the object data to the phase fitting function
     df=fit.calculate_forced_phot(data_all_filt,df_obj)
     print(df.iloc[0].to_string())
     if name:
         objid="_".join(name.split(" "))
     else:
         objid = int(mpc_number)
-    print("open figs/sbpy_phase_fit_{}_HG*".format(objid))
+    # print("open figs/sbpy_phase_fit_{}_HG*".format(objid)) # command to open the figures that are created
 
+    # append the phase curve results of this single object to a large dataframe of all objects
     df_results = df_results.append(df)
 
     # break
 
+# save the entire set of phase curves to a single file
 df_results.to_csv(fname_save)

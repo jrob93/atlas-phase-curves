@@ -1,0 +1,13 @@
+Use the files here to calculate phase curves for objects you already have data for.
+Set up some directories:
+mkdir data - place all observational data here
+mkdir figs - location to save phase curve figure
+
+You should set up a conda environment to ensure that package requirements are met.
+See ../conda_envs for some examples.
+
+python fit_phase_curve_centaur.py - calculate the phase curves and make plots
+
+Analysis:
+centaur_plots.ipynb - visualise the observational data
+analyse_centaurs.ipynb - load and visualise the phase curve fits for all centaurs
