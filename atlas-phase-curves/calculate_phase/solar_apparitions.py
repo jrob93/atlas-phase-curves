@@ -228,7 +228,7 @@ class solar_apparitions():
 
         return np.array(turning_points)
 
-    def plot_solar_elongation(self,turning_points=[]):
+    def plot_solar_elongation(self,turning_points=[],label=None):
 
         if self.save_path:
             # non-interactive
@@ -242,7 +242,7 @@ class solar_apparitions():
         gs = gridspec.GridSpec(1, 1)
         ax1 = plt.subplot(gs[0,0])
 
-        # plot the solar elongation
+        # plot the solar elongation from rockAtlas
         ax1.scatter(self.df_data["mjd"],np.absolute(self.df_data["sun_obs_target_angle"]),
         c="k",s=5,
         label="solar elongation")
@@ -252,15 +252,21 @@ class solar_apparitions():
         ax1.set_xlabel("mjd")
         ax1.set_ylabel("angle(degrees)")
 
+        # plot the actual JPL ephemerides solar elongation if available
         if self.df_eph is not None:
             ax1.scatter(self.df_eph["mjd"],self.df_eph["elong"],
             c="r",s=5,alpha=0.5,zorder=0,
             label="solar elongation JPL")
 
-        ax1.legend()
-
+        # mark the edges of the epochs with vertical lines
         for x in turning_points:
             ax1.axvline(x,c="r")
+
+        # add a blank line for the label
+        if label is not None:
+            ax1.axvline(np.nan,c="r",label = label)
+
+        ax1.legend()
 
         title = "{}_{}".format("solar_apparitions",self.obj_id_save)
         fig.suptitle(title)
