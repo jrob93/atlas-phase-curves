@@ -7,6 +7,9 @@
 *.pyc
 tmp
 __init__.py
+*.DS_Store
+*.zip
+*.txt
 
 # https://github.com/github/gitignore/blob/master/Python.gitignore
 
