@@ -10,6 +10,7 @@ __init__.py
 *.DS_Store
 *.zip
 *.txt
+*.pdf
 
 # https://github.com/github/gitignore/blob/master/Python.gitignore
 
