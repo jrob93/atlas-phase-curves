@@ -75,6 +75,8 @@ for name in name_list:
     data_all_filt = df_o.append(df_c)
     data_all_filt = data_all_filt.rename(columns={"MJD":"mjd","alpha":"phase_angle","reduced_dmag":"merr"})
     print(data_all_filt)
+    # data_all_filt.to_csv("/home/astro/phase_curves_mc/data/{}_ATLAS_forced_phot.csv".format(name))
+    # exit()
 
     # load a previously saved JPL horizons query if available, otherwise query to get object details
     JPL_file = "{}/{}_JPL_Horizons.csv".format(data_path,load_name)
