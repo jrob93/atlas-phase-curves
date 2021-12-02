@@ -5,10 +5,14 @@ from astropy.time import Time
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from sbpy.data import Names
+import os
+from pathlib import Path
 
 # define the path to this file so that database_meta_files can be loaded
 # figure out how to set this automatically when importing
-abs_path="/Users/jrobinson/atlas-phase-curves/atlas-phase-curves/tools"
+# abs_path="/Users/jrobinson/atlas-phase-curves/atlas-phase-curves/tools"
+abs_path = "{}".format(Path(__file__).parent)
+# print(abs_path)
 
 #-------------------------------------------------------------------------------
 # database loading functions

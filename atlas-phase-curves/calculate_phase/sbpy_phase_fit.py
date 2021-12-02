@@ -1124,7 +1124,8 @@ class phase_fit():
                             print("N_data_fit = {}\nN_data_cut = {}".format(N_data_fit,N_data_cut))
 
                             # check number of data points cut and fit all add up to starting data
-                            N_data_tot = N_data_zero_err + N_data_small_err + N_data_gal + N_alpha_lin + N_data_cut + N_data_fit
+                            # NEED TO COUNT DATA CUT BY ORBFIT_SEP_CUT HERE
+                            N_data_tot = N_data_zero_err + N_data_small_err + N_data_gal + N_alpha_lin + N_data_cut + N_data_fit + N_data_orbfit
                             print(N_data_zero_err,N_data_small_err,N_data_gal,N_alpha_lin,N_data_cut,N_data_fit)
                             print("N_data_tot = {}\nN_data_start = {}".format(N_data_tot,N_data_start))
                             if N_data_tot!=N_data_start:
