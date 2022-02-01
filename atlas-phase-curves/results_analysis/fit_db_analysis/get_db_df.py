@@ -1,4 +1,10 @@
-
+"""
+Download all atlas phase curve data to local machine.
+Push to remote machine if required using:
+rsync -av -e ssh atlas_phase_fits_orbs_24_11_2021.csv cuillin:atlas-phase-curves/atlas-phase-curves/results_analysis/fit_db_analysis
+OR
+scp atlas_phase_fits_orbs_24_11_2021.csv cuillin:atlas-phase-curves/atlas-phase-curves/results_analysis/fit_db_analysis
+"""
 import numpy as np
 from sbpy.photometry import HG, HG1G2, HG12, HG12_Pen16
 import pandas as pd

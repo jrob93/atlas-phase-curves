@@ -16,7 +16,8 @@ size = 30
 save_path = "/Users/jrobinson/atlas-phase-curves/atlas-phase-curves/results_analysis/orbfit_figs"
 save_file_type="png"
 
-mjd_lim = 59259 # 2021-02-14 00:00:00.000
+# mjd_lim = 59259 # 2021-02-14 00:00:00.000
+mjd_lim = 59542 # 2021-11-24
 today = Time(datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")).mjd
 
 parser = OptionParser()
@@ -173,7 +174,8 @@ if plot_option==2:
         o.a_semimajor_axis,
         o.e_eccentricity,
         o.i_inclination_deg
-        FROM orbital_elements o WHERE AND o.name=%(name);""".format(name)
+        FROM orbital_elements o WHERE o.name="{}";""".format(name)
+    print(qry)
     df_orb = pd.read_sql_query(qry,cnx)
     print(df_orb)
 
@@ -184,4 +186,4 @@ if plot_option==2:
     # epochs = sol.solar_elongation_JPL(JPL_step="7d")
     # sol.plot_solar_elongation(epochs, label = "epochs JPL method")
     N_app = len(epochs)-1 # number of apparitions detected in both filters
-    print(N_app)
+    print("Number of apparitions = {}".format(N_app))

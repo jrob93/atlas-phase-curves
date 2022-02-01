@@ -677,8 +677,8 @@ class phase_fit():
 
         ax1.scatter(alpha_reject,mag_reject,c='r',s=10,marker = "x",label="rejected data".format(len(mag_reject)))
 
-        ax1.set_xlabel('alpha(degrees)')
-        ax1.set_ylabel('reduced mag')
+        ax1.set_xlabel('phase angle (degrees)')
+        ax1.set_ylabel('reduced magnitude')
         ax1.invert_yaxis()
         ax1.legend()
 
@@ -853,7 +853,8 @@ class phase_fit():
             plt.savefig(fname, bbox_inches='tight')
 
         if self.show_fig:
-            plt.show()
+            print("show figure")
+            plt.show();
         else:
             plt.close()
 

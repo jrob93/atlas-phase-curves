@@ -153,6 +153,27 @@ def load_schemel_db(
 
     return df
 
+def load_LCDB(
+    fname="/home/astro/asteroid_databases/warner_LCDB/ast-lightcurve-database_V3_0/data/lc_summary.csv",
+    nrows=None):
+
+    """
+    Data from https://alcdef.org/index.php, https://alcdef.org/docs/ALCDEF_ALL.zip
+    See ast-lightcurve-database_V3_0/document/pds_readme.pdf for documentation
+    """
+
+    N_skip_lines=21
+    header_line_number=17
+    skip_list=np.delete(np.arange(N_skip_lines+1),header_line_number-1)
+
+    df=pd.read_csv(fname,header=0,skiprows=skip_list,nrows=nrows)
+
+    # I assume these are all placeholders for nan
+    df=df.replace("-",np.nan)
+    df=df.replace(-9,np.nan)
+    df=df.replace(-9.99,np.nan)
+
+    return df
 
 def load_mpcorb_db(
     fname="/Users/jrobinson/asteroid_databases/mpcorb/MPCORB.DAT",
