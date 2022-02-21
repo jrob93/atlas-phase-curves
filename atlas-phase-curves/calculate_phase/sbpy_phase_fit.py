@@ -306,9 +306,10 @@ class phase_fit():
                 vals[i]="NULL"
 
             # catch any names/dates that will need fixed
-            if cols[i] in ["name","phase_curve_refresh_date_o","phase_curve_refresh_date_c"]: # these fields are strings and need quotation marks
-                col_vals_update+="{}=\"{}\",".format(cols[i],vals[i])
-                vals[i]="\"{}\"".format(vals[i])
+            if cols[i] in ["name","phase_curve_refresh_date_o","phase_curve_refresh_date_c","dateLastModified","last_photometry_update_date_c","last_photometry_update_date_o"]: # these fields are strings and need quotation marks
+                if vals[i]!="NULL":
+                    col_vals_update+="{}=\"{}\",".format(cols[i],vals[i])
+                    vals[i]="\"{}\"".format(vals[i])
             else:
                 col_vals_update+="{}={},".format(cols[i],vals[i])
 
@@ -324,7 +325,7 @@ class phase_fit():
             logging.warning(warning_message)
 
         qry=u"""INSERT INTO {} ({}) values ({}) ON DUPLICATE KEY UPDATE {};""".format(self.tab_name,",".join(cols), ",".join(vals), col_vals_update)
-        # print(qry)
+        print(qry)
 
         self.cursor2.execute(qry)
         self.cnx2.commit()
@@ -982,6 +983,32 @@ class phase_fit():
                 print("no data, cannot fit")
                 break
 
+            # Fit a simple phase curve at each epoch
+            # Use the astorb H and G (G is most likely 0.15)
+            HG_model = HG(H = H_abs_mag * u.mag, G = G_slope)
+            HG_model.G.fixed = True # fix G when fitting
+
+            H_list = []
+            for i,x in enumerate(epochs[1:]):
+
+                mask = ((data_filt["mjd"]>=epochs[i]) & (data_filt["mjd"]<epochs[i+1]))
+                data = data_filt[mask]
+
+                if len(data)==0:
+                    continue
+
+                alpha = np.array(data["phase_angle"]) * u.deg
+                mag = np.array(data["reduced_mag"]) * u.mag
+                mag_err = np.array(data["merr"]) * u.mag
+
+                model = self.fitter(HG_model, alpha, mag, weights=1.0/np.array(mag_err))
+                H_list.append(model.H.value)
+
+            H_list = np.array(H_list)
+            H_app_med = np.median(H_list)
+            H_app_std = np.std(H_list)
+            H_app_range = np.ptp(H_list)
+
             # iterate over all models
             for model_name,model_values in self.selected_models.items():
 
@@ -1139,33 +1166,35 @@ class phase_fit():
                             OC_std = np.std(residuals)
                             OC_range = np.absolute(np.amax(residuals)-np.amin(residuals))
 
-                            # residuals for each epoch
-                            sort_mask = np.argsort(data["mjd"])
-                            mjd = np.array(data["mjd"])[sort_mask]
-                            residuals = np.array(residuals)[sort_mask]
-                            res_med_list = []
-                            for i in range(1,len(epochs)):
-                                m1 = epochs[i-1]
-                                m2 = epochs[i]
-                                N_days_epoch = m2-m1
-                                date_mask = ((mjd>=m1) & (mjd<m2))
-                                N_data_epoch = len(mjd[date_mask])
-                                if N_data_epoch>len(pc): # need at least the same of data points as number of parameters
-                                    res_med = np.median(residuals[date_mask])
-                                    res_med_list.append(res_med)
-                                    # print(m1,m2,N_days_epoch,N_data_epoch,res_med)
-                            res_med_list = np.array(res_med_list)
-                            print(res_med_list)
-                            app_res_med = np.median(res_med_list) # median of the median residual for all apparitions
-                            app_res_std = np.std(res_med_list) # std of the median residual for all apparitions
-                            app_res_mean = np.mean(res_med_list) # mean of the median residual for all apparitions
-                            app_res_range = np.absolute(np.amax(res_med_list)-np.amin(res_med_list)) # maximum difference between apparition residuals
-
-                            print("total number of epochs = {}".format(N_app))
-                            print("median median epoch residual = {}".format(app_res_med))
-                            print("mean median epoch residual = {}".format(app_res_mean))
-                            print("std median epoch residual = {}".format(app_res_std))
-                            print("range median epoch residual = {}".format(app_res_range))
+                            # # residuals for each epoch
+                            # # this does not include data that was cut during the iterative fit and cut
+                            # # Should calculate apparitionß properties before fitting?
+                            # sort_mask = np.argsort(data["mjd"])
+                            # mjd = np.array(data["mjd"])[sort_mask]
+                            # residuals = np.array(residuals)[sort_mask]
+                            # res_med_list = []
+                            # for i in range(1,len(epochs)):
+                            #     m1 = epochs[i-1]
+                            #     m2 = epochs[i]
+                            #     N_days_epoch = m2-m1
+                            #     date_mask = ((mjd>=m1) & (mjd<m2))
+                            #     N_data_epoch = len(mjd[date_mask])
+                            #     if N_data_epoch>len(pc): # need at least the same of data points as number of parameters
+                            #         res_med = np.median(residuals[date_mask])
+                            #         res_med_list.append(res_med)
+                            #         # print(m1,m2,N_days_epoch,N_data_epoch,res_med)
+                            # res_med_list = np.array(res_med_list)
+                            # print(res_med_list)
+                            # app_res_med = np.median(res_med_list) # median of the median residual for all apparitions
+                            # app_res_std = np.std(res_med_list) # std of the median residual for all apparitions
+                            # app_res_mean = np.mean(res_med_list) # mean of the median residual for all apparitions
+                            # app_res_range = np.absolute(np.amax(res_med_list)-np.amin(res_med_list)) # maximum difference between apparition residuals
+                            #
+                            # print("total number of epochs = {}".format(N_app))
+                            # print("median median epoch residual = {}".format(app_res_med))
+                            # print("mean median epoch residual = {}".format(app_res_mean))
+                            # print("std median epoch residual = {}".format(app_res_std))
+                            # print("range median epoch residual = {}".format(app_res_range))
 
                             # check for errors
                             if N_mag_err>N_data_fit:
@@ -1196,9 +1225,12 @@ class phase_fit():
 
                             df_obj["phase_curve_N_cut{}_{}".format(ms,filt)]=N_data_cut
 
-                            df_obj["phase_curve_app_res_med{}_{}".format(ms,filt)]=app_res_med
-                            df_obj["phase_curve_app_res_std{}_{}".format(ms,filt)]=app_res_std
-                            df_obj["phase_curve_app_res_range{}_{}".format(ms,filt)]=app_res_range
+                            # df_obj["phase_curve_app_res_med{}_{}".format(ms,filt)]=app_res_med
+                            # df_obj["phase_curve_app_res_std{}_{}".format(ms,filt)]=app_res_std
+                            # df_obj["phase_curve_app_res_range{}_{}".format(ms,filt)]=app_res_range
+                            df_obj["phase_curve_app_res_med{}_{}".format(ms,filt)]=H_app_med
+                            df_obj["phase_curve_app_res_std{}_{}".format(ms,filt)]=H_app_std
+                            df_obj["phase_curve_app_res_range{}_{}".format(ms,filt)]=H_app_range
 
                             for p in range(len(pc)):
                                 df_obj["phase_curve_{}{}_{}".format(pc[p],ms,filt)]=params[p]
