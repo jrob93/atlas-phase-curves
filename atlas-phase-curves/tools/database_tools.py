@@ -154,7 +154,7 @@ def load_schemel_db(
     return df
 
 def load_LCDB(
-    fname="/home/astro/asteroid_databases/warner_LCDB/ast-lightcurve-database_V3_0/data/lc_summary.csv",
+    fname="/Users/jrobinson/asteroid_databases/warner_LCDB/ast-lightcurve-database_V3_0/data/lc_summary.csv",
     nrows=None):
 
     """
@@ -211,6 +211,29 @@ def load_mpcorb_db(
 
     # load as dataframe
     df=pd.read_fwf(fname,skiprows=43,colspecs=byte_list,names=label_list,nrows=nrows,dtype=dtype_dict)
+
+    return df
+
+def load_mpc_comets_db(
+    fname="/Users/jrobinson/asteroid_databases/mpcorb/CometEls.txt",
+    nrows=None):
+
+    """
+    Load the mpcorb comet database.
+    Requires the label and byte lists for pandas read fixed width file function
+
+    fname = file name of the database csv, including the path
+    nrows = number of rows to read in, leave as None to read whole file
+
+    N.B. that if nrows is short the automatic pandas dtypes may not read the flags column properly
+    """
+
+    label_list=np.load("{}/database_meta_files/label_list_mpc_comets.npy".format(abs_path))
+    byte_list=np.load("{}/database_meta_files/byte_list_mpc_comets.npy".format(abs_path))
+    byte_list=[tuple(x) for x in byte_list] # np save and load doesn't preserve the tuples?
+
+    # load as dataframe
+    df=pd.read_fwf(fname,colspecs=byte_list,names=label_list,nrows=nrows)
 
     return df
 
