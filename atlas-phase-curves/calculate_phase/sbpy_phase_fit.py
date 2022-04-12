@@ -42,6 +42,7 @@ class phase_fit():
     phase_lin_min=5 # minimum phase angle for linear fit - MAKE OPTIONAL?
     phase_lin_max=25 # maximum phase angle for linear fit
     orbfit_sep_cut=1.0 # maximum allowed orbfit separation for matching dophot_photometry (arcsec)
+    min_app_data=10 # minimum number of data points to consider when fitting individual apparitions
 
     # set the clipping method for the phase_fit class
     def data_clip_sigma(self,data,data_predict,low=std,high=std):
@@ -861,6 +862,80 @@ class phase_fit():
 
         return
 
+    def apparition_plot(self,df_data,epochs,models):
+
+        print("plot apparitions")
+
+        if not self.show_fig:
+            import matplotlib
+            print("use agg")
+            matplotlib.use('agg') # use agg backend to stop python stealing focus when plotting
+
+        import matplotlib.pyplot as plt
+        import matplotlib.gridspec as gridspec
+
+        fig = plt.figure()
+        gs = gridspec.GridSpec(1,2)
+        ax1 = plt.subplot(gs[0,0])
+        ax2 = plt.subplot(gs[0,1])
+
+        phase_angle = np.linspace(0,np.amax(df_data["phase_angle"])) * u.deg
+
+        for i,x in enumerate(epochs[1:]):
+            mask = ((df_data["mjd"]>=epochs[i]) & (df_data["mjd"]<epochs[i+1]))# & (df_data["filter"]=="o")
+            df_plot = df_data[mask]
+
+            ax2.axvline(x,c="k",alpha = 0.2)
+
+            # evaluate the HG models
+            if models[i] and len(df_plot)>0:
+
+                ax1.scatter(df_plot["phase_angle"],df_plot["reduced_mag"],s=5, label = "epoch {}".format(i))
+
+                reduced_mag_atlas = models[i](phase_angle)
+                ax1.plot(phase_angle,reduced_mag_atlas,
+                         label = "epoch {}: H={:.2f}, G={:.2f}".format(i,models[i].H.value,models[i].G.value))
+
+                reduced_mag_atlas = models[i](np.array(df_plot['phase_angle']) * u.deg)
+                residual_mag_atlas = np.array(df_plot["reduced_mag"]) - np.array(reduced_mag_atlas)
+                H_mag = residual_mag_atlas + models[i].H.value
+
+                ax2.scatter(df_plot["mjd"],H_mag,s=5, label = "{}".format(i))
+                ax2.scatter(np.median(df_plot["mjd"]),models[i].H.value,c="r",marker = "x",zorder=5)
+                ax2.errorbar(np.median(df_plot["mjd"]),np.median(H_mag),np.std(H_mag),
+                             fmt='o',capsize=3,c="k")
+
+            else:
+                ax1.scatter(df_plot["phase_angle"],df_plot["reduced_mag"],s=1,c="k",label = "epoch {}".format(i))
+
+        ax1.invert_yaxis()
+        ax1.set_xlabel("phase_angle")
+        ax1.set_ylabel("reduced_mag")
+
+        ax2.invert_yaxis()
+        ax2.set_xlabel("mjd")
+        ax2.set_ylabel("H_mag")
+
+        # ax1.legend()
+        ax2.legend()
+
+        fig.suptitle("{}_{}_apparitions".format(os.path.basename(__file__).split('.')[0],self.file_identifier))
+        plt.tight_layout()
+
+        if self.save_fig:
+            fname="{}/{}_{}_apparitions{}.{}".format(self.save_path,os.path.basename(__file__).split('.')[0],self.file_identifier,self.save_file_suffix,self.save_file_type)
+            print(fname)
+            plt.savefig(fname, bbox_inches='tight')
+
+        if self.show_fig:
+            print("show figure")
+            plt.show();
+        else:
+            plt.close()
+
+        return
+
+
 # migrate all these long plotting functions above to a different file?
 
     def calculate(self):
@@ -888,7 +963,7 @@ class phase_fit():
         self.name=df_obj.iloc[0]['name']
 
         # Find the solar apparitions from elongation
-        # ADD CONDITIONS ON ORBIT ON WHETHER OR NOT TO USE JPL?
+        # ADD CONDITIONS ON ORBIT ON WHETHER OR NOT TO USE JPL? cache JPL queries for NEOs
         # or just ignore results in the database for q < 1.3 AU
         print(df_obj[["a_semimajor_axis","e_eccentricity","i_inclination_deg"]])
         orbital_period_yrs = df_obj.iloc[0]["a_semimajor_axis"]**1.5
@@ -896,12 +971,18 @@ class phase_fit():
         epochs = sol.solar_elongation(-1.0,period = orbital_period_yrs)
         # epochs = sol.solar_elongation_JPL(JPL_step="7d")
 
+        # make the epoch plot?
+        if self.plot_fig:
+            sol.save_path = self.save_path
+            sol.plot_solar_elongation(epochs)
+
+
         print(epochs)
         N_app = len(epochs)-1 # number of apparitions detected in both filters
         df_obj["N_apparitions"]=N_app
 
 
-        # do a seperate fit for data in each filter
+        # do a separate fit for data in each filter
         for filt in self.filters:
 
             # retrieve astorb H and G values for the predicted fit
@@ -983,37 +1064,96 @@ class phase_fit():
                 print("no data, cannot fit")
                 break
 
-            # Investigate apparitions. Fit a simple phase curve at each epoch
-            # Use the astorb H and G (G is most likely 0.15)
-            HG_model = HG(H = H_abs_mag * u.mag, G = G_slope)
-            HG_model.G.fixed = True # fix G when fitting
+            #-----
+            # Investigate apparitions. Fit a simple phase curve at each epoch. Use the more numerous o filter data
+            if filt=="o":
 
-            H_list = []
-            # only continue if N_apparitions>1?
-            for i,x in enumerate(epochs[1:]):
+                print("investigate apparitions")
+                # Use the astorb H and G (G is most likely 0.15)
+                HG_model = HG(H = H_abs_mag * u.mag, G = G_slope)
+                HG_model.G.fixed = True # fix G when fitting each apparition
 
-                mask = ((data_filt["mjd"]>=epochs[i]) & (data_filt["mjd"]<epochs[i+1]))
-                data = data_filt[mask]
+                # trim any extreme outliers with a mag diff cut before fitting
+                alpha = np.array(data_filt["phase_angle"]) * u.deg
+                mag = np.array(data_filt["reduced_mag"]) * u.mag
+                mask=self.data_clip_diff(mag, HG_model(alpha),self.mag_med_cut)
+                data=data_filt[~mask]
 
-                # trim any extreme outliers with a mag diff cut before fitting?
 
-                if len(data)==0: # require a minimum number of data points to guarantee good fit, e.g. >10
-                    continue
+                H_list = []
+                data_std_list = []
+                phase_range_list = []
+                model_list = []
 
-                alpha = np.array(data["phase_angle"]) * u.deg
-                mag = np.array(data["reduced_mag"]) * u.mag
-                mag_err = np.array(data["merr"]) * u.mag
+                # only continue if N_apparitions>1?
+                for i,x in enumerate(epochs[1:]):
 
-                model = self.fitter(HG_model, alpha, mag, weights=1.0/np.array(mag_err))
-                H_list.append(model.H.value)
+                    mask = ((data["mjd"]>=epochs[i]) & (data["mjd"]<epochs[i+1]))
+                    _data = data[mask]
+                    print(i,len(_data))
 
-                # calculate residuals for each epoch?
+                    # require a minimum number of data points to guarantee good fit
+                    if len(_data)<self.min_app_data:
+                        print("not enough data in apparition")
+                        model_list.append(False)
+                        H_list.append(np.nan)
+                        data_std_list.append(np.nan)
+                        phase_range_list.append(np.nan)
+                        continue
 
-            H_list = np.array(H_list)
-            # find the median, std and range of the different H values across all epochs
-            H_app_med = np.median(H_list)
-            H_app_std = np.std(H_list)
-            H_app_range = np.ptp(H_list)
+                    alpha = np.array(_data["phase_angle"]) * u.deg
+                    mag = np.array(_data["reduced_mag"]) * u.mag
+                    mag_err = np.array(_data["merr"]) * u.mag
+
+                    try:
+                        model = self.fitter(HG_model, alpha, mag, weights=1.0/np.array(mag_err))
+                    except:
+                        print("fit failed")
+                        model_list.append(False)
+                        H_list.append(np.nan)
+                        data_std_list.append(np.nan)
+                        phase_range_list.append(np.nan)
+                        continue
+
+                    # record model:
+                    model_list.append(model)
+
+                    # record fitted absolute magnitude H
+                    H_list.append(model.H.value)
+
+                    # record the residuals to the HG fit for each epoch
+                    reduced_mag_atlas = model(alpha)
+                    residual_mag_atlas = np.array(mag) - np.array(reduced_mag_atlas)
+                    # H_mag = residual_mag_atlas + model.H.value
+                    # data_std_list.append(np.std(H_mag))
+                    data_std_list.append(np.std(residual_mag_atlas))
+
+                    # record the phase angle range for each epoch
+                    phase_range_list.append(np.ptp(np.array(alpha)))
+
+                # calculate stats for each apparition
+                H_list = np.array(H_list)
+                data_std_list = np.array(data_std_list)
+                phase_range_list = np.array(phase_range_list)
+
+                std_H_app = np.std(H_list[~np.isnan(H_list)])
+                med_std_app = np.median(data_std_list[~np.isnan(data_std_list)])
+                alpha_app_range = np.ptp(phase_range_list[~np.isnan(phase_range_list)])
+
+                print("phase_curve_std_H_app_{}={}".format(filt,std_H_app))
+                print("phase_curve_med_std_app_{}={}".format(filt,med_std_app))
+                print("phase_angle_app_range_{}={}".format(filt,alpha_app_range))
+
+                # store the parameters in df_obj
+                df_obj["phase_curve_med_H_app_{}".format(filt)]=std_H_app
+                df_obj["phase_curve_med_std_app_{}".format(filt)]=med_std_app
+                df_obj["phase_angle_app_range_{}".format(filt)]=alpha_app_range
+
+                # make a plot?
+                if self.plot_fig:
+                    self.apparition_plot(df_data = data,epochs = epochs, models = model_list)
+
+            #-----
 
             # iterate over all models
             for model_name,model_values in self.selected_models.items():
@@ -1172,36 +1312,6 @@ class phase_fit():
                             OC_std = np.std(residuals)
                             OC_range = np.absolute(np.amax(residuals)-np.amin(residuals))
 
-                            # # residuals for each epoch
-                            # # this does not include data that was cut during the iterative fit and cut
-                            # # Should calculate apparitionß properties before fitting?
-                            # sort_mask = np.argsort(data["mjd"])
-                            # mjd = np.array(data["mjd"])[sort_mask]
-                            # residuals = np.array(residuals)[sort_mask]
-                            # res_med_list = []
-                            # for i in range(1,len(epochs)):
-                            #     m1 = epochs[i-1]
-                            #     m2 = epochs[i]
-                            #     N_days_epoch = m2-m1
-                            #     date_mask = ((mjd>=m1) & (mjd<m2))
-                            #     N_data_epoch = len(mjd[date_mask])
-                            #     if N_data_epoch>len(pc): # need at least the same of data points as number of parameters
-                            #         res_med = np.median(residuals[date_mask])
-                            #         res_med_list.append(res_med)
-                            #         # print(m1,m2,N_days_epoch,N_data_epoch,res_med)
-                            # res_med_list = np.array(res_med_list)
-                            # print(res_med_list)
-                            # app_res_med = np.median(res_med_list) # median of the median residual for all apparitions
-                            # app_res_std = np.std(res_med_list) # std of the median residual for all apparitions
-                            # app_res_mean = np.mean(res_med_list) # mean of the median residual for all apparitions
-                            # app_res_range = np.absolute(np.amax(res_med_list)-np.amin(res_med_list)) # maximum difference between apparition residuals
-                            #
-                            # print("total number of epochs = {}".format(N_app))
-                            # print("median median epoch residual = {}".format(app_res_med))
-                            # print("mean median epoch residual = {}".format(app_res_mean))
-                            # print("std median epoch residual = {}".format(app_res_std))
-                            # print("range median epoch residual = {}".format(app_res_range))
-
                             # check for errors
                             if N_mag_err>N_data_fit:
                                 # ERROR in calculating N-mag_err?
@@ -1231,12 +1341,12 @@ class phase_fit():
 
                             df_obj["phase_curve_N_cut{}_{}".format(ms,filt)]=N_data_cut
 
-                            # df_obj["phase_curve_app_res_med{}_{}".format(ms,filt)]=app_res_med
-                            # df_obj["phase_curve_app_res_std{}_{}".format(ms,filt)]=app_res_std
-                            # df_obj["phase_curve_app_res_range{}_{}".format(ms,filt)]=app_res_range
-                            df_obj["phase_curve_app_res_med{}_{}".format(ms,filt)]=H_app_med
-                            df_obj["phase_curve_app_res_std{}_{}".format(ms,filt)]=H_app_std
-                            df_obj["phase_curve_app_res_range{}_{}".format(ms,filt)]=H_app_range
+                            # # df_obj["phase_curve_app_res_med{}_{}".format(ms,filt)]=app_res_med
+                            # # df_obj["phase_curve_app_res_std{}_{}".format(ms,filt)]=app_res_std
+                            # # df_obj["phase_curve_app_res_range{}_{}".format(ms,filt)]=app_res_range
+                            # df_obj["phase_curve_app_res_med{}_{}".format(ms,filt)]=H_app_med
+                            # df_obj["phase_curve_app_res_std{}_{}".format(ms,filt)]=H_app_std
+                            # df_obj["phase_curve_app_res_range{}_{}".format(ms,filt)]=H_app_range
 
                             for p in range(len(pc)):
                                 df_obj["phase_curve_{}{}_{}".format(pc[p],ms,filt)]=params[p]
