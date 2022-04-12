@@ -823,7 +823,7 @@ class phase_fit():
 
             ax1.scatter(mjd[date_mask],residuals[date_mask],c="C{}".format(i), label = "epoch {}".format(i))
 
-            # try fit model to epoch data, provided there is enough data
+            # try fit model to epoch data, provided there is enough data. FIX G FOR THESE FITS?
             # if N_data_epoch>0 & len(alpha)>len(model_func.param_names):
             if N_data_epoch>len(model_func.param_names):
 
@@ -955,7 +955,7 @@ class phase_fit():
             data_zero_err=data_filt[mask_zero]
             data_filt=data_filt[~mask_zero]
             print("{} after zero error cut".format(len(data_filt)))
-            # drop measurements with small (or zero) uncertainty
+            # drop measurements with very small uncertainty
             mask_err = data_filt['merr']<self.mag_err_small
             data_small_err=data_filt[mask_err]
             data_filt=data_filt[~mask_err]
@@ -983,18 +983,21 @@ class phase_fit():
                 print("no data, cannot fit")
                 break
 
-            # Fit a simple phase curve at each epoch
+            # Investigate apparitions. Fit a simple phase curve at each epoch
             # Use the astorb H and G (G is most likely 0.15)
             HG_model = HG(H = H_abs_mag * u.mag, G = G_slope)
             HG_model.G.fixed = True # fix G when fitting
 
             H_list = []
+            # only continue if N_apparitions>1?
             for i,x in enumerate(epochs[1:]):
 
                 mask = ((data_filt["mjd"]>=epochs[i]) & (data_filt["mjd"]<epochs[i+1]))
                 data = data_filt[mask]
 
-                if len(data)==0:
+                # trim any extreme outliers with a mag diff cut before fitting?
+
+                if len(data)==0: # require a minimum number of data points to guarantee good fit, e.g. >10
                     continue
 
                 alpha = np.array(data["phase_angle"]) * u.deg
@@ -1004,7 +1007,10 @@ class phase_fit():
                 model = self.fitter(HG_model, alpha, mag, weights=1.0/np.array(mag_err))
                 H_list.append(model.H.value)
 
+                # calculate residuals for each epoch?
+
             H_list = np.array(H_list)
+            # find the median, std and range of the different H values across all epochs
             H_app_med = np.median(H_list)
             H_app_std = np.std(H_list)
             H_app_range = np.ptp(H_list)
@@ -1321,6 +1327,8 @@ class phase_fit():
         df_obj = dataframe containing information on the object: name, mpc_number, H_abs_mag, G_slope,
                 a_semimajor_axis, e_eccentricity, i_inclination_deg
         """
+
+        # fold this function into regular "calculate" function above?
 
         # cut the data on date range and drop nans
         if self.start_date:
