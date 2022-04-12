@@ -299,6 +299,26 @@ def atlas_SQL_query(cnx,mpc_number=4986,filter="all"):
 
     return df # should also return orbital_elements_id!!!
 
+def get_astorb_HG(cnx,orbital_elements_id):
+
+    qry_HG="SELECT name, mpc_number, G_slope, H_abs_mag FROM orbital_elements WHERE primaryId='{}';".format(orbital_elements_id) # primaryId in the orbital_elements table is the same as orbital_elements_id in atlas_objects (check...)
+    # print(qry_HG)
+    df_HG=read_sql_query(qry_HG,cnx)
+    # print(df_HG)
+
+    G_slope=float(df_HG.iloc[0]['G_slope'])
+    H_abs_mag=float(df_HG.iloc[0]['H_abs_mag'])
+
+    # do filter correction from V band (Heinze et al. 2020) - see also Erasmus et al 2020 for the c-o colours of S and C types (0.388 and 0.249 respectively)
+    H_abs_mag_o = H_abs_mag - 0.332
+    H_abs_mag_c = H_abs_mag + 0.054
+
+    df_HG["H_abs_mag_o"] = H_abs_mag_o
+    df_HG["H_abs_mag_c"] = H_abs_mag_c
+    # print(df_HG)
+
+    return df_HG
+
 # if __name__ == "__main__":
 #
 #     import pandas as pd
