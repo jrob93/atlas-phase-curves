@@ -962,25 +962,42 @@ class phase_fit():
         self.mpc_number=df_obj.iloc[0]['mpc_number']
         self.name=df_obj.iloc[0]['name']
 
+        #-----
         # Find the solar apparitions from elongation
-        # ADD CONDITIONS ON ORBIT ON WHETHER OR NOT TO USE JPL? cache JPL queries for NEOs
-        # or just ignore results in the database for q < 1.3 AU
         print(df_obj[["a_semimajor_axis","e_eccentricity","i_inclination_deg"]])
-        orbital_period_yrs = df_obj.iloc[0]["a_semimajor_axis"]**1.5
-        sol = sa.solar_apparitions(mpc_number = self.mpc_number, name = self.name, df_data = data_all_filt)
-        epochs = sol.solar_elongation(-1.0,period = orbital_period_yrs)
-        # epochs = sol.solar_elongation_JPL(JPL_step="7d")
+        q_perihelion = df_obj.iloc[0]["a_semimajor_axis"] * (1.0 - df_obj.iloc[0]["a_semimajor_axis"])
+
+        # if an object is an NEO, accurate JPL ephem query is required
+        if q_perihelion<=1.3:
+            print("NEO, JPL apparitions required")
+            # Check if the JPL query is out of date. Note, if end_date is not set it is False and old queries will be wiped
+            if np.amax(data_all_filt["mjd"]) > self.end_date:
+                # wipe the old JPL query if it exists, query will run again
+                sol = sa.solar_apparitions(mpc_number = self.mpc_number, name = self.name, df_data = data_all_filt,
+                                            reload = True, eph_load_path = "NEO_JPL_eph")
+            else:
+                # use JPL apparition method, will load an existing eph file if available
+                sol = sa.solar_apparitions(mpc_number = self.mpc_number, name = self.name, df_data = data_all_filt,
+                                            eph_load_path = "NEO_JPL_eph")
+
+            epochs = sol.solar_elongation_JPL(JPL_step="7d")
+
+        # Simple and fast apparition finder works for non-NEO objects
+        else:
+            # just use the simple apparition finder
+            orbital_period_yrs = df_obj.iloc[0]["a_semimajor_axis"]**1.5
+            sol = sa.solar_apparitions(mpc_number = self.mpc_number, name = self.name, df_data = data_all_filt)
+            epochs = sol.solar_elongation(-1.0,period = orbital_period_yrs)
 
         # make the epoch plot?
         if self.plot_fig:
             sol.save_path = self.save_path
             sol.plot_solar_elongation(epochs)
 
-
         print(epochs)
         N_app = len(epochs)-1 # number of apparitions detected in both filters
         df_obj["N_apparitions"]=N_app
-
+        #-----
 
         # do a separate fit for data in each filter
         for filt in self.filters:
@@ -1079,7 +1096,6 @@ class phase_fit():
                 mask=self.data_clip_diff(mag, HG_model(alpha),self.mag_med_cut)
                 data=data_filt[~mask]
 
-
                 H_list = []
                 data_std_list = []
                 phase_range_list = []
@@ -1136,9 +1152,15 @@ class phase_fit():
                 data_std_list = np.array(data_std_list)
                 phase_range_list = np.array(phase_range_list)
 
-                std_H_app = np.std(H_list[~np.isnan(H_list)])
-                med_std_app = np.median(data_std_list[~np.isnan(data_std_list)])
-                alpha_app_range = np.ptp(phase_range_list[~np.isnan(phase_range_list)])
+                # if all values in lists are nan (e.g. NEOs when default apparition finder fails) then stat calculation will fail
+                try:
+                    std_H_app = np.std(H_list[~np.isnan(H_list)])
+                    med_std_app = np.median(data_std_list[~np.isnan(data_std_list)])
+                    alpha_app_range = np.ptp(phase_range_list[~np.isnan(phase_range_list)]) # note that ptp of one value  = 0
+                except:
+                    std_H_app = np.nan
+                    med_std_app = np.nan
+                    alpha_app_range = np.nan
 
                 print("phase_curve_std_H_app_{}={}".format(filt,std_H_app))
                 print("phase_curve_med_std_app_{}={}".format(filt,med_std_app))
@@ -1149,10 +1171,9 @@ class phase_fit():
                 df_obj["phase_curve_med_std_app_{}".format(filt)]=med_std_app
                 df_obj["phase_angle_app_range_{}".format(filt)]=alpha_app_range
 
-                # make a plot?
                 if self.plot_fig:
+                    # make a plot showing data sorted into apparitions
                     self.apparition_plot(df_data = data,epochs = epochs, models = model_list)
-
             #-----
 
             # iterate over all models
