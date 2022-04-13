@@ -965,8 +965,9 @@ class phase_fit():
         #-----
         # Find the solar apparitions from elongation
         print(df_obj[["a_semimajor_axis","e_eccentricity","i_inclination_deg"]])
-        q_perihelion = df_obj.iloc[0]["a_semimajor_axis"] * (1.0 - df_obj.iloc[0]["a_semimajor_axis"])
-
+        # q_perihelion = df_obj.iloc[0]["a_semimajor_axis"] * (1.0 - df_obj.iloc[0]["e_eccentricity"])
+        q_perihelion = 2.0
+        epochs = []
         # if an object is an NEO, accurate JPL ephem query is required
         if q_perihelion<=1.3:
             print("NEO, JPL apparitions required")
@@ -988,6 +989,10 @@ class phase_fit():
             orbital_period_yrs = df_obj.iloc[0]["a_semimajor_axis"]**1.5
             sol = sa.solar_apparitions(mpc_number = self.mpc_number, name = self.name, df_data = data_all_filt)
             epochs = sol.solar_elongation(-1.0,period = orbital_period_yrs)
+
+        if len(epochs)==0:
+            print("Error determining apparitions")
+            logging.warning("{} - {} Error determining apparitions".format(self.mpc_number,self.name))
 
         # make the epoch plot?
         if self.plot_fig:
