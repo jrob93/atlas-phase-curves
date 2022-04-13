@@ -961,12 +961,12 @@ class phase_fit():
         # set the mpc_number and name from df_obj !!!
         self.mpc_number=df_obj.iloc[0]['mpc_number']
         self.name=df_obj.iloc[0]['name']
+        print(self.mpc_number,self.name)
 
         #-----
         # Find the solar apparitions from elongation
         print(df_obj[["a_semimajor_axis","e_eccentricity","i_inclination_deg"]])
-        # q_perihelion = df_obj.iloc[0]["a_semimajor_axis"] * (1.0 - df_obj.iloc[0]["e_eccentricity"])
-        q_perihelion = 2.0
+        q_perihelion = df_obj.iloc[0]["a_semimajor_axis"] * (1.0 - df_obj.iloc[0]["e_eccentricity"])
         epochs = []
         # if an object is an NEO, accurate JPL ephem query is required
         if q_perihelion<=1.3:

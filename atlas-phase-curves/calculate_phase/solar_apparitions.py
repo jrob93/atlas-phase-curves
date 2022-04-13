@@ -45,13 +45,13 @@ class solar_apparitions():
         # path to save a figure
         self.save_path = save_path
 
-        # object identifiers
-        if name:
-            self.obj_id = name
-            self.obj_id_save = "_".join(name.split())
-        else:
+        # object identifiers. Use mpc_number if available to avoid name confusion (e.g. asteroid vs comet Fitzsimmons)
+        if mpc_number:
             self.obj_id = mpc_number
             self.obj_id_save = mpc_number
+        else:
+            self.obj_id = name
+            self.obj_id_save = "_".join(name.split())
 
         # set up data path names
         self.data_load_path = data_load_path
@@ -266,7 +266,7 @@ class solar_apparitions():
         if label is not None:
             ax1.axvline(np.nan,c="r",label = label)
 
-        ax1.legend()
+        # ax1.legend()
 
         title = "{}_{}".format("solar_apparitions",self.obj_id_save)
         fig.suptitle(title)
