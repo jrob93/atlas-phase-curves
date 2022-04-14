@@ -311,11 +311,12 @@ class phase_fit():
                 if vals[i]!="NULL":
                     col_vals_update+="{}=\"{}\",".format(cols[i],vals[i])
                     vals[i]="\"{}\"".format(vals[i])
+                else:
+                    col_vals_update+="{}={},".format(cols[i],vals[i])
             else:
                 col_vals_update+="{}={},".format(cols[i],vals[i])
 
         col_vals_update=col_vals_update[:-1] # drop the last comma
-        # print(col_vals_update)
 
         # sanity check to make sure no values are dropped
         N_col_vals_update=len(col_vals_update.split(","))
@@ -923,7 +924,7 @@ class phase_fit():
         plt.tight_layout()
 
         if self.save_fig:
-            fname="{}/{}_{}_apparitions{}.{}".format(self.save_path,os.path.basename(__file__).split('.')[0],self.file_identifier,self.save_file_suffix,self.save_file_type)
+            fname="{}/{}_{}_apparitions.{}".format(self.save_path,os.path.basename(__file__).split('.')[0],self.file_identifier,self.save_file_type)
             print(fname)
             plt.savefig(fname, bbox_inches='tight')
 
