@@ -290,8 +290,8 @@ class phase_fit():
         vals=df_obj[cols].iloc[0]
         vals=np.array(vals).astype(str)
 
-        for c,v in zip(cols,vals):
-            print(c,v)
+        # for c,v in zip(cols,vals):
+        #     print(c,v)
 
         N_cols=len(cols)
         N_vals=len(vals)
@@ -299,7 +299,7 @@ class phase_fit():
         # create a qry that sql can handle!
         col_vals_update=""
         for i in range(N_cols):
-            print("update {} {}".format(cols[i],vals[i]))
+            # print("update {} {}".format(cols[i],vals[i]))
             # get rid of if statement if possible? better coding? list comprehension?
 
             # catch any values that are nan
@@ -327,7 +327,7 @@ class phase_fit():
             logging.warning(warning_message)
 
         qry=u"""INSERT INTO {} ({}) values ({}) ON DUPLICATE KEY UPDATE {};""".format(self.tab_name,",".join(cols), ",".join(vals), col_vals_update)
-        print(qry)
+        # print(qry)
 
         self.cursor2.execute(qry)
         self.cnx2.commit()
@@ -959,10 +959,20 @@ class phase_fit():
         # update the detection_count, dropping nans and outside date range
         df_obj["detection_count"]=len(data_all_filt) # note that atlas_objects may not have up to date detection count, call update_atlas_objects
 
-        # set the mpc_number and name from df_obj !!!
-        self.mpc_number=df_obj.iloc[0]['mpc_number']
+        # set the mpc_number and name from df_obj
+        df_obj_mpc_num = df_obj.iloc[0]['mpc_number']
+        if df_obj_mpc_num!="NULL": # sql might lead to a NULL value overwriting the mpc_number which will interfere with cases of "if self.mpc_number"
+            self.mpc_number=df_obj.iloc[0]['mpc_number']
         self.name=df_obj.iloc[0]['name']
         print(self.mpc_number,self.name)
+
+        # if no data remains after loading, e.g. all data outside of date range, then nothing can be fit
+        if len(data_all_filt)==0:
+            print("no data to start with, cannot proceed")
+            # push df_obj to the database
+            if self.push_fit==True:
+                self.push_obj_db(df_obj)
+            return df_obj # return the fit df
 
         #-----
         # Find the solar apparitions from elongation
