@@ -327,7 +327,7 @@ class phase_fit():
             logging.warning(warning_message)
 
         qry=u"""INSERT INTO {} ({}) values ({}) ON DUPLICATE KEY UPDATE {};""".format(self.tab_name,",".join(cols), ",".join(vals), col_vals_update)
-        # print(qry)
+        print(qry)
 
         self.cursor2.execute(qry)
         self.cnx2.commit()
@@ -1018,6 +1018,9 @@ class phase_fit():
         # do a separate fit for data in each filter
         for filt in self.filters:
 
+            # update the refresh date as we have started an attempt to fit the phase curve in this filter
+            df_obj["phase_curve_refresh_date_{}".format(filt)]=self.utc_date_now
+
             # retrieve astorb H and G values for the predicted fit
             G_slope=float(df_obj.iloc[0]['G_slope'])
             H_abs_mag=float(df_obj.iloc[0]['H_abs_mag'])
@@ -1368,7 +1371,7 @@ class phase_fit():
                             df_obj["phase_curve_N_alpha_low{}_{}".format(ms,filt)]=N_alpha_low
                             df_obj["phase_curve_N_nights{}_{}".format(ms,filt)]=N_nights
                             df_obj["phase_curve_N_iter{}_{}".format(ms,filt)]=N_iter
-                            df_obj["phase_curve_refresh_date_{}".format(filt)]=self.utc_date_now
+                            # df_obj["phase_curve_refresh_date_{}".format(filt)]=self.utc_date_now
                             df_obj["phase_curve_nfev{}_{}".format(ms,filt)]=nfev
                             df_obj["phase_curve_ier{}_{}".format(ms,filt)]=ier
                             df_obj["phase_curve_N_mag_err{}_{}".format(ms,filt)]=N_mag_err
@@ -1411,7 +1414,7 @@ class phase_fit():
                                 # data_filt,data_zero_err,data_small_err,data_gal,data_diff)
 
                                 # plot epochs
-                                self.plot_epochs(model_func,model_name,model,data,data_all_filt,epochs,filt)
+                                # self.plot_epochs(model_func,model_name,model,data,data_all_filt,epochs,filt)
                                 # exit()
 
                                 self.plot_phase_fit_fancy(model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
@@ -1824,7 +1827,7 @@ class phase_fit():
                                 data_filt,data_cut_list=[])
 
                                 # plot epochs
-                                self.plot_epochs(model_func,model_name,model,data,data_all_filt,epochs,filt)
+                                # self.plot_epochs(model_func,model_name,model,data,data_all_filt,epochs,filt)
                                 # exit()
 
                                 # simplify plotting by passing a list of dataframes of cut data?
