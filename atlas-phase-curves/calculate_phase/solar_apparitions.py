@@ -141,9 +141,14 @@ class solar_apparitions():
 
             epoch_list = {'start':t1.iso, 'stop':t2.iso, 'step':JPL_step} # a range of epochs in Horizons format is FAST!
             # print(epoch_list)
-            obj = Horizons(id=self.obj_id, location=self.loc, epochs=epoch_list)
-            eph = obj.ephemerides()
-            df_eph = eph.to_pandas()
+            try:
+                obj = Horizons(id=self.obj_id, location=self.loc, epochs=epoch_list)
+                eph = obj.ephemerides()
+                df_eph = eph.to_pandas()
+            except:
+                print("JPL query error")
+                return []
+
             df_eph["mjd"] = df_eph["datetime_jd"] - self.mjd_jd
             # save df
             if self.eph_load_path is not None:
