@@ -1150,26 +1150,36 @@ class phase_fit():
                         phase_range_list.append(np.nan)
                         continue
 
-                    # record model:
-                    model_list.append(model)
-
-                    # record fitted absolute magnitude H
-                    H_list.append(model.H.value)
-
-                    # record the residuals to the HG fit for each epoch
+                    #determine residuals from model
                     reduced_mag_atlas = model(alpha)
                     residual_mag_atlas = np.array(mag) - np.array(reduced_mag_atlas)
-                    # H_mag = residual_mag_atlas + model.H.value
-                    # data_std_list.append(np.std(H_mag))
-                    data_std_list.append(np.std(residual_mag_atlas))
+                    H_mag = residual_mag_atlas + model.H.value
+                    print(np.absolute(np.median(H_mag)-model.H.value),np.std(residual_mag_atlas))
 
-                    # record the phase angle range for each epoch
-                    phase_range_list.append(np.ptp(np.array(alpha)))
+                    # model_list.append(model) # record model
+                    # H_list.append(model.H.value) # record fitted absolute magnitude H
+                    # data_std_list.append(np.std(residual_mag_atlas)) # record the residuals to the HG fit for each epoch
+                    # phase_range_list.append(np.ptp(np.array(alpha))) # record the phase angle range for each epoch
+
+                    if np.absolute(np.median(H_mag)-model.H.value)<np.std(residual_mag_atlas):
+                        model_list.append(model) # record model
+                        H_list.append(model.H.value) # record fitted absolute magnitude H
+                        data_std_list.append(np.std(residual_mag_atlas)) # record the residuals to the HG fit for each epoch
+                        phase_range_list.append(np.ptp(np.array(alpha))) # record the phase angle range for each epoch
+                    else:
+                        print("apparition not good")
+                        model_list.append(False)
+                        H_list.append(np.nan)
+                        data_std_list.append(np.nan)
+                        phase_range_list.append(np.nan)
 
                 # calculate stats for each apparition
                 H_list = np.array(H_list)
                 data_std_list = np.array(data_std_list)
                 phase_range_list = np.array(phase_range_list)
+                print(H_list)
+                print(data_std_list)
+                print(phase_range_list)
 
                 # if all values in lists are nan (e.g. NEOs when default apparition finder fails) then stat calculation will fail
                 try:
