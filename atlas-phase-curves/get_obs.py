@@ -57,8 +57,12 @@ print(list(df_data))
 print(df_data[["expname",'ra_deg','dec_deg']])
 
 print(df_data[["m",'merr','galactic_latitude']])
+print(np.amin(df_data["mjd"]),np.amax(df_data["mjd"]))
 
-# df_data.to_csv("results_analysis/obs/df_data_{}.csv".format(mpc_number))
+if mpc_number:
+    df_data.to_csv("results_analysis/obs/df_data_{}.csv".format(mpc_number))
+else:
+    df_data.to_csv("results_analysis/obs/df_data_{}.csv".format(name))
 
 # print(time1/time2,time2/time2, time3/time2)
 
@@ -90,6 +94,8 @@ ax1.errorbar(df_data['phase_angle'],df_data['reduced_mag'],df_data['merr'], fmt=
 ax1.legend()
 ax1.set_xlabel("phase_angle")
 ax1.set_ylabel("reduced_mag")
+
+ax1.invert_yaxis()
 
 plt.show()
 
