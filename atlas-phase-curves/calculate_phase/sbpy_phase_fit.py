@@ -659,7 +659,8 @@ class phase_fit():
             mag_reject = np.append(mag_reject,np.array(data_diff['reduced_mag']))
 
         # plot iterative fits and cuts
-        alpha_fit=np.linspace(np.amin(alpha),np.amax(alpha),100)
+        # alpha_fit=np.linspace(np.amin(alpha),np.amax(alpha),100)
+        alpha_fit=np.linspace(0,np.amax(alpha),250)
         print(label_iter_list)
         print(model_iter_list)
         # print(k)
@@ -679,6 +680,10 @@ class phase_fit():
         mag_reject=mag_reject[mask]
 
         ax1.scatter(alpha_reject,mag_reject,c='r',s=10,marker = "x",label="rejected data".format(len(mag_reject)))
+
+        # set y lims to better show the phase curve, not rejected data
+        yshift = 0.5
+        plt.ylim(np.amin(data['reduced_mag'])-yshift, np.amax(data['reduced_mag'])+yshift)
 
         ax1.set_xlabel('phase angle (degrees)')
         ax1.set_ylabel('reduced magnitude')
@@ -1008,7 +1013,7 @@ class phase_fit():
         # make the epoch plot?
         if self.plot_fig:
             sol.save_path = self.save_path
-            sol.plot_solar_elongation(epochs)
+            # sol.plot_solar_elongation(epochs)
 
         print(epochs)
         N_app = len(epochs)-1 # number of apparitions detected in both filters
