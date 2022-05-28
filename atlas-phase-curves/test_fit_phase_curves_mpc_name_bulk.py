@@ -98,6 +98,6 @@ for name in name_list:
         continue
     print(name)
     df = phase_fit_func_name(name,end_date_mjd)
-    print(df)
+    # print(df)
     print("\n")
-    break
+    # break
