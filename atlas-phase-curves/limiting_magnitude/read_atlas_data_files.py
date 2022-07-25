@@ -11,9 +11,6 @@ import sys
 import os
 import subprocess
 
-sys.path.append("/Users/jrobinson/atlas-phase-curves/atlas-phase-curves")
-from calculate_phase import atlas_database_connection as adb
-
 def get_data_file(filename):
     """Function to read the data file"""
     with open(filename, "r") as f:
@@ -55,22 +52,22 @@ for i in range(len(df_rA)):
     data = []
     for e in extension:
         _file = file+e
+
+        # check file exists
         if os.path.isfile(_file):
             print(i,_file)
             data = get_data_file(_file)
-            break
-        else:
-#             print("{} not found".format(_file))
-            continue
 
-    if len(data)>0:
-        dat_dict = data_to_dict(data)
-        dat = [dat_dict[x] for x in cols]
-        f.write(",".join(dat)+"\n")
-    else:
-        print("{} {} not found".format(i,file))
+            # make sure there is data in the file, otherwise read the next file
+            if len(data)>0:
+       	        dat_dict = data_to_dict(data)
+                dat = [dat_dict[x] for x in cols]
+                f.write(",".join(dat)+"\n")
+                break
+            else:
+                continue
 
-    if i>10:
-        break
+    # if i>10:
+    #     break
 
 f.close()
