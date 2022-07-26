@@ -18,9 +18,6 @@ import sys
 import os
 import subprocess
 
-sys.path.append("/Users/jrobinson/atlas-phase-curves/atlas-phase-curves")
-from calculate_phase import atlas_database_connection as adb
-
 def get_data_file(filename):
     """Function to read the data file"""
     with open(filename, "r") as f:
@@ -39,7 +36,8 @@ def data_to_dict(data):
     return dat_dict
 
 # read in list of missing exposures
-df_rA = pd.read_csv("df_rockAtlas_missing_exposures.csv",index_col=0)
+# df_rA = pd.read_csv("df_rockAtlas_missing_exposures.csv",index_col=0)
+df_rA = pd.read_csv("df_rockAtlas_missing_exposures2.csv",index_col=0)
 
 cols = ["OBS","MJD","MAG5SIG"] # columns to get from data files
 extension = [".ddt",".ddc"] # possible file extensions
@@ -62,22 +60,24 @@ for i in range(len(df_rA)):
     data = []
     for e in extension:
         _file = file+e
+
+        # check file exists
         if os.path.isfile(_file):
             print(i,_file)
             data = get_data_file(_file)
-            break
+
+            # make sure there is data in the file, otherwise read the next file
+            if len(data)>0:
+       	        dat_dict = data_to_dict(data)
+                dat = [dat_dict[x] for x in cols]
+                f.write(",".join(dat)+"\n")
+                break
+            else:
+                continue
         else:
-#             print("{} not found".format(_file))
-            continue
+            print(i,"{} not found".format(_file))
 
-    if len(data)>0:
-        dat_dict = data_to_dict(data)
-        dat = [dat_dict[x] for x in cols]
-        f.write(",".join(dat)+"\n")
-    else:
-        print("{} {} not found".format(i,file))
-
-    if i>10:
-        break
+    # if i>10:
+    #     break
 
 f.close()
