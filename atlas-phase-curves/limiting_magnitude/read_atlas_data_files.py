@@ -2,6 +2,13 @@
 Script to find the data for missing atlas exposures.
 Searches through /atlas/data on the db4 server to retrieve the .ddt or .ddc files.
 Run this on the db4 server.
+
+A list of missing exposures is required. E.g. copy this to starbase from local machine:
+scp df_rockAtlas_missing_exposures.csv sb:/home/jer/atlas-phase-curves/atlas-phase-curves/limiting_magnitude/
+
+Get results from remote with:
+scp sb:/home/jer/atlas-phase-curves/atlas-phase-curves/limiting_magnitude/rockAtlas_missing_exposures*.csv .
+
 """
 
 from astropy.time import Time
