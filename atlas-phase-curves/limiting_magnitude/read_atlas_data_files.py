@@ -29,7 +29,8 @@ def data_to_dict(data):
     return dat_dict
 
 # read in list of missing exposures
-df_rA = pd.read_csv("df_rockAtlas_missing_exposures.csv",index_col=0)
+# df_rA = pd.read_csv("df_rockAtlas_missing_exposures.csv",index_col=0)
+df_rA = pd.read_csv("df_rockAtlas_missing_exposures2.csv",index_col=0)
 
 cols = ["OBS","MJD","MAG5SIG"] # columns to get from data files
 extension = [".ddt",".ddc"] # possible file extensions
@@ -66,6 +67,8 @@ for i in range(len(df_rA)):
                 break
             else:
                 continue
+        else:
+            print(i,"{} not found".format(_file))
 
     # if i>10:
     #     break
