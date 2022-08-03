@@ -37,7 +37,7 @@ def phase_fit_func_mpc(mpc_number,end_date):
         sys.stdout = sys.__stdout__ # need to reset the redirect!
     return check
 
-def phase_fit_func_name(name):
+def phase_fit_func_name(name,end_date):
     with open("tmp", "w") as f:
         sys.stdout = f
         fit = sbpy_phase_fit.phase_fit(name=name,end_date=end_date,**function_flags)
@@ -96,7 +96,7 @@ print(len(name_list))
 
 # do all the mpc_number fits, then do all the name fits
 object_lists=[mpc_number_list,name_list]
-object_lists=[mpc_number_list[:4],name_list[:4]]
+# object_lists=[mpc_number_list[:4],name_list[:4]]
 phase_fit_functions=[phase_fit_func_mpc,phase_fit_func_name]
 
 # create a file that records the date, the start and end mpc numbers in a batch, the length of time to complete a batch, the number of jobs in a batch and the number of objects done per sec

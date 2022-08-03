@@ -45,13 +45,13 @@ class solar_apparitions():
         # path to save a figure
         self.save_path = save_path
 
-        # object identifiers
-        if name:
-            self.obj_id = name
-            self.obj_id_save = "_".join(name.split())
-        else:
+        # object identifiers. Use mpc_number if available to avoid name confusion (e.g. asteroid vs comet Fitzsimmons)
+        if mpc_number:
             self.obj_id = mpc_number
             self.obj_id_save = mpc_number
+        else:
+            self.obj_id = name
+            self.obj_id_save = "_".join(name.split())
 
         # set up data path names
         self.data_load_path = data_load_path
@@ -141,9 +141,14 @@ class solar_apparitions():
 
             epoch_list = {'start':t1.iso, 'stop':t2.iso, 'step':JPL_step} # a range of epochs in Horizons format is FAST!
             # print(epoch_list)
-            obj = Horizons(id=self.obj_id, location=self.loc, epochs=epoch_list)
-            eph = obj.ephemerides()
-            df_eph = eph.to_pandas()
+            try:
+                obj = Horizons(id=self.obj_id, location=self.loc, epochs=epoch_list)
+                eph = obj.ephemerides()
+                df_eph = eph.to_pandas()
+            except:
+                print("JPL query error")
+                return []
+
             df_eph["mjd"] = df_eph["datetime_jd"] - self.mjd_jd
             # save df
             if self.eph_load_path is not None:
@@ -266,7 +271,7 @@ class solar_apparitions():
         if label is not None:
             ax1.axvline(np.nan,c="r",label = label)
 
-        ax1.legend()
+        # ax1.legend()
 
         title = "{}_{}".format("solar_apparitions",self.obj_id_save)
         fig.suptitle(title)

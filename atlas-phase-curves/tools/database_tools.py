@@ -154,7 +154,7 @@ def load_schemel_db(
     return df
 
 def load_LCDB(
-    fname="/Users/jrobinson/asteroid_databases/warner_LCDB/ast-lightcurve-database_V3_0/data/lc_summary.csv",
+    fname="/Users/jrobinson/asteroid_databases/warner_LCDB/ast-lightcurve-database_V4_0/data/lc_summary.csv",
     nrows=None):
 
     """
@@ -402,7 +402,10 @@ def unpack_mpc_name_num(mpc_name):
     https://sbpy.readthedocs.io/en/latest/sbpy/data/names.html
     """
 
-    x=Names.parse_asteroid(mpc_name)
+    try:
+        x=Names.parse_asteroid(mpc_name)
+    except:
+        x=Names.parse_comet(mpc_name)
 
     # get the name if it exists, if not get the designation
     if 'name' in x:
@@ -485,6 +488,11 @@ def load_mpcorb_db_unpacked(
 
     return df
 
+def load_astdys(fname="/Users/jrobinson/asteroid_databases/astdys/all.syn"):
+    col_list1 = ["Name","mag.","a(AU)","e","sin(I)","n(deg/yr)",'g("/yr)','s("/yr)',"LCEx1E6","My"]
+    byte_list1 = [(0,10),(10,18),(18,29),(29,39),(39,50),(50,63),(63,75),(75,88),(88,96),(96,98)]
+    df=pd.read_fwf(fname,skiprows=2,names=col_list1,colspecs=byte_list1)
+    return df
 #-------------------------------------------------------------------------------
 # database plotting functions
 #-------------------------------------------------------------------------------

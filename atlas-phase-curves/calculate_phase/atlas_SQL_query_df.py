@@ -201,6 +201,37 @@ def atlas_SQL_query_orbid_expname(cnx,orbital_elements_id,filter="all"):
 
     return df # should also return orbital_elements_id!!!
 
+def atlas_SQL_query_orbid_all(cnx,orbital_elements_id):
+
+    """ Query all dophot fields available in rockAtlas for a single object"""
+
+    # based on dave's query that uses orbital_elements_id
+    sqlQuery = u"""
+    SELECT d.primaryId, d.dateCreated, d.dateLastModified, d.updated, d.ap_fit, d.apmag,
+    d.apsky, d.dapmag, d.dec_deg, d.dfitmag, d.expname, d.fitmag, d.idx, d.m, d.major,
+    d.minor, d.orbfit_postions_id, d.orbfit_separation_arcsec, d.phi, d.probgal, d.ra_deg,
+    d.sky, d.type, d.xtsk, d.ytsk, d.sep_rank, d.object_name, d.orbital_elements_id,
+    d.sherlock_classification, d.mjd,
+    d.m - 5*log10(o.heliocentric_distance*o.observer_distance) as reduced_mag,  d.dfitmag as merr,
+    a.filter, a.limiting_magnitude,
+     o.observer_distance, o.heliocentric_distance, o.phase_angle,
+       o.apparent_mag, o.galactic_latitude, o.sun_obs_target_angle
+    FROM
+        dophot_photometry d,
+        orbfit_positions o,
+        atlas_exposures a
+    WHERE
+        d.orbfit_postions_id = o.primaryId
+            AND a.expname = d.expname
+            AND o.orbital_elements_id = %(orbital_elements_id)s;
+    """ % locals()
+
+    # perform the query and store results as a dataframe
+    sqlQuery=sqlQuery
+    # print(sqlQuery)
+    df=read_sql_query(sqlQuery,cnx)
+    return df
+
 def atlas_SQL_query_test(cnx,mpc_number=False,filter="all",name=False):
     """ Test grabbing orb id and the data in the same function """
 
