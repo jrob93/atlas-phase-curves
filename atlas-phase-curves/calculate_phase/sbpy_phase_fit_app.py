@@ -346,30 +346,30 @@ class phase_fit():
         dataAllFilt=self.get_obj_data(self.cnx1,self.orbital_elements_id,self.start_date,self.end_date)
 
         # get the object metadata and combine with the phase fit dataframe structure
-        df_obj=self.get_obj_meta(self.cnx1,self.orbital_elements_id,self.mpc_number,self.name)
-        print(df_obj)
-        d1=df_obj
+        df_obj_main=self.get_obj_meta(self.cnx1,self.orbital_elements_id,self.mpc_number,self.name)
+        print(df_obj_main)
+        d1=df_obj_main
         d2=self.df_obj_datafit
-        df_obj=d2.append(d1) # add the values to the df
+        df_obj_main=d2.append(d1) # add the values to the df
 
         # retrieve astorb H and G values for the predicted fit
-        G_slope=float(df_obj.iloc[0]['G_slope'])
-        H_abs_mag=float(df_obj.iloc[0]['H_abs_mag']) * u.mag
+        G_slope=float(df_obj_main.iloc[0]['G_slope'])
+        H_abs_mag=float(df_obj_main.iloc[0]['H_abs_mag']) * u.mag
         print("G_slope = {}\nH_abs_mag = {}".format(G_slope,H_abs_mag))
 
         # set the mpc_number and name from df_obj
-        df_obj_mpc_num = df_obj.iloc[0]['mpc_number']
+        df_obj_mpc_num = df_obj_main.iloc[0]['mpc_number']
         if df_obj_mpc_num!="NULL": # sql might lead to a NULL value overwriting the mpc_number which will interfere with cases of "if self.mpc_number"
-            self.mpc_number=df_obj.iloc[0]['mpc_number']
-        self.name=df_obj.iloc[0]['name']
+            self.mpc_number=df_obj_main.iloc[0]['mpc_number']
+        self.name=df_obj_main.iloc[0]['name']
         print(self.mpc_number,self.name)
 
         #-----
         # Find the solar apparitions from elongation
         # do this before cuts on observations so that apparitions in the galactic plane are recorded
 
-        print(df_obj[["a_semimajor_axis","e_eccentricity","i_inclination_deg"]])
-        q_perihelion = df_obj.iloc[0]["a_semimajor_axis"] * (1.0 - df_obj.iloc[0]["e_eccentricity"])
+        print(df_obj_main[["a_semimajor_axis","e_eccentricity","i_inclination_deg"]])
+        q_perihelion = df_obj_main.iloc[0]["a_semimajor_axis"] * (1.0 - df_obj_main.iloc[0]["e_eccentricity"])
         epochs = []
         # if an object is an NEO, accurate JPL ephem query is required
         if q_perihelion<=1.3:
@@ -389,7 +389,7 @@ class phase_fit():
         # Simple and fast apparition finder works for non-NEO objects
         else:
             # just use the simple apparition finder
-            orbital_period_yrs = df_obj.iloc[0]["a_semimajor_axis"]**1.5
+            orbital_period_yrs = df_obj_main.iloc[0]["a_semimajor_axis"]**1.5
             sol = sa.solar_apparitions(mpc_number = self.mpc_number, name = self.name, df_data = dataAllFilt)
             epochs = sol.solar_elongation(-1.0,period = orbital_period_yrs)
 
@@ -405,7 +405,7 @@ class phase_fit():
 
         print(epochs)
         N_app = len(epochs)-1 # number of apparitions detected in both filters
-        df_obj["N_apparitions"]=N_app
+        df_obj_main["N_apparitions"]=N_app
 
         #-----
         # cuts on observations
@@ -415,7 +415,7 @@ class phase_fit():
         # Record number of detections in the filter AFTER nan and date cuts but BEFORE other cuts are made
         # This updates the detection_count value from rockatlas
         N_data_start = len(data_all_filt)
-        df_obj["detection_count"]=N_data_start # update the number of detections in the df
+        df_obj_main["detection_count"]=N_data_start # update the number of detections in the df
 
         # cut starting data for this filter
         print("{} starting data".format(len(data_all_filt)))
@@ -464,8 +464,8 @@ class phase_fit():
             print("no data to start with, cannot proceed")
             # push df_obj to the database
             if self.push_fit==True:
-                self.push_obj_db(df_obj)
-            return df_obj # return the fit df
+                self.push_obj_db(df_obj_main)
+            return df_obj_main # return the fit df
 
         #------
         # select the primary epoch of the o filter data - best number of data points, phase angle range and number of obs at low phase
@@ -510,43 +510,52 @@ class phase_fit():
 
         #-----
 
-        # do a separate fit for data in each filter
-        for filt in self.filters:
+        df_obj_all = pd.DataFrame()
 
-            # do filter correction from V band (Heinze et al. 2020) - see also Erasmus et al 2020 for the c-o colours of S and C types (0.388 and 0.249 respectively)
-            if filt=="o":
-                H_abs_mag+=(-0.332*u.mag)
-            if filt=="c":
-                H_abs_mag+=(0.054*u.mag)
+        # fit each epoch - in the "best" order as sorted above
+        for i in range(len(df_epoch))[::-1]:
 
-            # iterate over all models for this apparition
-            for model_name,model_values in self.selected_models.items():
+            # make a copy of the object dataframe frame containing all common metadata
+            # we need a separate df for each apparition
+            df_obj = df_obj_main.copy()
 
-                # cut on phase angle range only if using the Linear phase function
-                if model_name=="LinearPhaseFunc":
-                    mask_alpha = ((data_filt["phase_angle"]>=self.phase_lin_min) & (data_filt["phase_angle"]<=self.phase_lin_max))
-                    N_alpha_lin=len(data_filt[~mask_alpha])
-                    data_filt=data_filt[mask_alpha]
-                    print("CUT N_alpha_lin = {}".format(N_alpha_lin))
-                else:
-                    N_alpha_lin=0
+            print("\n")
+            print(df_epoch.iloc[i])
+            # continue
+            epoch_ind = int(df_epoch.iloc[i]["epoch"])
+            df_obj["app_start_mjd"]=epochs[epoch_ind]
+            df_obj["app_ind"]=epoch_ind
 
-                print(filt,model_name,model_values)
+            # do a separate fit for data in each filter
+            for filt in self.filters:
 
-                # retrieve model names etc
-                ms=model_values["model_name_short"]
-                pc=model_values["model_parameters"]
-                model=model_values["model_function"]
+                df_obj["phase_curve_refresh_date_{}".format(filt)]=self.utc_date_now
 
-                print(ms,pc,model)
+                # do filter correction from V band (Heinze et al. 2020) - see also Erasmus et al 2020 for the c-o colours of S and C types (0.388 and 0.249 respectively)
+                if filt=="o":
+                    H_abs_mag+=(-0.332*u.mag)
+                if filt=="c":
+                    H_abs_mag+=(0.054*u.mag)
 
-                # fit each epoch - in the "best" order as sorted above
-                for i in range(len(df_epoch))[::-1]:
+                # iterate over all models for this apparition
+                for model_name,model_values in self.selected_models.items():
 
-                    print("\n")
-                    print(df_epoch.iloc[i])
-                    # continue
-                    epoch_ind = int(df_epoch.iloc[i]["epoch"])
+                    # cut on phase angle range only if using the Linear phase function
+                    if model_name=="LinearPhaseFunc":
+                        mask_alpha = ((data_filt["phase_angle"]>=self.phase_lin_min) & (data_filt["phase_angle"]<=self.phase_lin_max))
+                        N_alpha_lin=len(data_filt[~mask_alpha])
+                        data_filt=data_filt[mask_alpha]
+                        print("CUT N_alpha_lin = {}".format(N_alpha_lin))
+                    else:
+                        N_alpha_lin=0
+
+                    print(filt,model_name,model_values)
+
+                    # retrieve model names etc
+                    ms=model_values["model_name_short"]
+                    pc=model_values["model_parameters"]
+                    model=model_values["model_function"]
+                    print(ms,pc,model)
 
                     # sometimes the first epoch in the dataframe might be empty, skip it
                     if float(df_epoch.iloc[i]['N_data'])==0:
@@ -570,6 +579,8 @@ class phase_fit():
                     else:
                         # set up the model with fixed slope for every other apparition
                         fit_slope = False
+
+                    df_obj["fit_slope"]=fit_slope
 
                     # set whether slope params are fixed
                     print(model)
@@ -634,10 +645,6 @@ class phase_fit():
                     # ier=self.fitter.fit_info['ierr'] # scipy fitter flag
                     N_mag_err=len(mag_err[np.array(mag_err)<self.mag_err_threshold]) # Use leq? Number of data points with error below some threshold
 
-                    # RECORD THE ORIGINAL NUMBER OF DATA POINTS IN EACH APPARITION (or data points that are cut)
-                    # RECORD APPARITION MJD START DATE
-                    # RECORD APPARITION INTEGER
-
                     # calculate the residual properties
                     residuals = mag - model(alpha)
                     OC_mean = np.mean(residuals)
@@ -658,7 +665,7 @@ class phase_fit():
                     df_obj["phase_angle_range_{}".format(filt)] = alpha_range
                     df_obj["phase_curve_N_alpha_low_{}".format(filt)]=N_alpha_low
                     df_obj["phase_curve_N_mag_err_{}".format(filt)]=N_mag_err
-                    df_obj["phase_curve_N_app_{}".format(filt)]=N_app
+                    df_obj["phase_curve_N_data_app_{}".format(filt)]=N_app
 
                     # phase curve model fit properties
                     df_obj["phase_curve_OC_mean{}_{}".format(ms,filt)]=OC_mean
@@ -677,465 +684,74 @@ class phase_fit():
                         df_obj["phase_curve_{}{}_{}".format(pc[p],ms,filt)]=params[p]
                         df_obj["phase_curve_{}_err{}_{}".format(pc[p],ms,filt)]=param_err_x[p]
 
-                    print(df_obj.iloc[0].to_string())
+                    # make a plot?
+                    if self.plot_fig:
+
+                        if not self.show_fig:
+                            import matplotlib
+                            print("use agg")
+                            matplotlib.use('agg') # use agg backend to stop python stealing focus when plotting
+
+                        import matplotlib.pyplot as plt
+                        import matplotlib.gridspec as gridspec
+
+                        fig = plt.figure()
+                        gs = gridspec.GridSpec(1,1)
+                        ax1 = plt.subplot(gs[0,0])
+
+                        # plot all the apparition data
+                        ax1.errorbar(data['phase_angle'],data['reduced_mag'],data['merr'], fmt='ko',label="fitted data",zorder=0,markersize="2")
+
+                        # highlight rejected data
+                        alpha_reject = np.concatenate([np.array(data_zero_err['phase_angle']),
+                        np.array(data_small_err['phase_angle']),np.array(data_gal['phase_angle']),
+                        np.array(data_orbfit['phase_angle']),np.array(data_lim_mag["phase_angle"])])
+                        mag_reject = np.concatenate([np.array(data_zero_err['reduced_mag']),
+                        np.array(data_small_err['reduced_mag']),np.array(data_gal['reduced_mag']),
+                        np.array(data_orbfit['reduced_mag']),np.array(data_lim_mag["reduced_mag"])])
+
+                        # plot phase curve fit
+                        alpha_fit=np.linspace(0,np.amax(alpha),250)
+                        ax1.plot(alpha_fit,model_fit(alpha_fit))
+
+                        # set y lims to better show the phase curve, not rejected data
+                        yshift = 0.5
+                        plt.ylim(np.amin(data['reduced_mag'])-yshift, np.amax(data['reduced_mag'])+yshift)
+
+                        ax1.set_xlabel('phase angle (degrees)')
+                        ax1.set_ylabel('reduced magnitude')
+                        ax1.invert_yaxis()
+                        ax1.legend()
+
+                        ax1.set_title("{}_{}_{}_{}_{}_{}".format(os.path.basename(__file__).split('.')[0],self.file_identifier,epoch_ind,model_name,self.clip_label,filt))
+                        plt.tight_layout()
+
+                        if self.save_fig:
+                            fname="{}/{}_{}_{}_{}_{}_{}_fancy{}.{}".format(self.save_path,os.path.basename(__file__).split('.')[0],self.file_identifier,epoch_ind,model_name,self.clip_label,filt,self.save_file_suffix,self.save_file_type)
+                            print(fname)
+                            plt.savefig(fname, bbox_inches='tight')
+
+                        if self.show_fig:
+                            plt.show()
+                        else:
+                            plt.close()
+
+                        plt.style.use('default')
 
                     # push the parameters to database
-
-                    # make a plot?
-
-                    # exit()
-
-        exit()
-
-        # fit the remaining epochs in o and c, but keeping slope parameters fixed
-        # loop over epochs
-        # if len(data)>0 (or greater than minimumm number of data points) also consider minimum phase angle range?
-        # if i == epoch_prime_ind and filt == "o": continue
-
-        # do a separate fit for data in each filter
-        for filt in self.filters:
-
-            # update the refresh date as we have started an attempt to fit the phase curve in this filter
-            df_obj["phase_curve_refresh_date_{}".format(filt)]=self.utc_date_now
-
-            # retrieve astorb H and G values for the predicted fit
-            G_slope=float(df_obj.iloc[0]['G_slope'])
-            H_abs_mag=float(df_obj.iloc[0]['H_abs_mag'])
-            print("filt = {}\nG_slope = {}\nH_abs_mag = {}".format(filt,G_slope,H_abs_mag))
-
-            # do filter correction from V band (Heinze et al. 2020) - see also Erasmus et al 2020 for the c-o colours of S and C types (0.388 and 0.249 respectively)
-            if filt=="o":
-                H_abs_mag+=-0.332
-            if filt=="c":
-                H_abs_mag+=0.054
-
-            # select all data from a certain filter
-            data_filt=data_all_filt[data_all_filt['filter']==filt]
-
-            # # Record number of detections in the filter AFTER nan and date cuts but BEFORE other cuts are made
-            # # This updates the detection_count value from rockatlas
-            # N_data_start = len(data_filt)
-            # detection_count_filt=N_data_start
-            # df_obj["detection_count_{}".format(filt)]=detection_count_filt # update the number of detections in the df
-            #
-            # # Also update the rockatlas value of phase angle range, before fits are done
-            # df_obj["phase_angle_range_{}".format(filt)] = np.amax(data_filt["phase_angle"]) - np.amin(data_filt["phase_angle"])
-            #
-            # # cut starting data for this filter
-            # print("{} starting data".format(len(data_filt)))
-            #
-            # # drop measurements with large orbfit separation
-            # mask_orbfit = np.absolute(data_filt["orbfit_separation_arcsec"])>self.orbfit_sep_cut
-            # data_orbfit=data_filt[mask_orbfit]
-            # data_filt=data_filt[~mask_orbfit]
-            # print("{} after orbfit sep cut".format(len(data_filt)))
-            #
-            # # drop any measurements with zero uncertainty
-            # mask_zero = data_filt['merr']==0
-            # data_zero_err=data_filt[mask_zero]
-            # data_filt=data_filt[~mask_zero]
-            # print("{} after zero error cut".format(len(data_filt)))
-            # # drop measurements with very small uncertainty
-            # mask_err = data_filt['merr']<self.mag_err_small
-            # data_small_err=data_filt[mask_err]
-            # data_filt=data_filt[~mask_err]
-            # print("{} after small error cut".format(len(data_filt)))
-            # # drop measurements near galactic plane
-            # mask_gal = np.absolute(data_filt["galactic_latitude"])<self.gal_lat_cut
-            # data_gal=data_filt[mask_gal]
-            # data_filt=data_filt[~mask_gal]
-            # print("{} after galactic plane cut".format(len(data_filt)))
-            #
-            # print("{} data after cuts".format(len(data_filt)))
-            #
-            # # RECORD THE NUMBER OF DATA POINTS THAT HAVE BEEN CUT
-            # N_data_orbfit = len(data_orbfit)
-            # N_data_zero_err = len(data_zero_err)
-            # N_data_small_err = len(data_small_err)
-            # N_data_gal = len(data_gal)
-            # N_data_cut = N_data_orbfit + N_data_zero_err + N_data_small_err + N_data_gal
-            # print("CUT data_orbfit = {}\nCUT data_zero_err = {}\nCUT data_small_err = {}\nCUT data_gal = {}".format(
-            # N_data_orbfit,N_data_zero_err,N_data_small_err,N_data_gal))
-            # print("TOTAL CUT N_data_cut = {}".format(N_data_cut))
-            #
-            # # if no data remains after cuts, then nothing can be fit
-            # if len(data_filt)==0:
-            #     print("no data, cannot fit")
-            #     break
-
-            #-----
-            # Investigate apparitions. Fit a simple phase curve at each epoch. Use the more numerous o filter data
-            if filt=="o":
-
-                print("investigate apparitions")
-                # Use the astorb H and G (G is most likely 0.15)
-                HG_model = HG(H = H_abs_mag * u.mag, G = G_slope)
-                HG_model.G.fixed = True # fix G when fitting each apparition
-
-                # trim any extreme outliers with a mag diff cut before fitting
-                alpha = np.array(data_filt["phase_angle"]) * u.deg
-                mag = np.array(data_filt["reduced_mag"]) * u.mag
-                mask=self.data_clip_diff(mag, HG_model(alpha),self.mag_med_cut)
-                data=data_filt[~mask]
-
-                H_list = []
-                data_std_list = []
-                phase_range_list = []
-                model_list = []
-
-                # only continue if N_apparitions>1?
-                for i,x in enumerate(epochs[1:]):
-
-                    mask = ((data["mjd"]>=epochs[i]) & (data["mjd"]<epochs[i+1]))
-                    _data = data[mask]
-                    print(i,len(_data))
-
-                    # require a minimum number of data points to guarantee good fit
-                    if len(_data)<self.min_app_data:
-                        print("not enough data in apparition")
-                        model_list.append(False)
-                        H_list.append(np.nan)
-                        data_std_list.append(np.nan)
-                        phase_range_list.append(np.nan)
-                        continue
-
-                    alpha = np.array(_data["phase_angle"]) * u.deg
-                    mag = np.array(_data["reduced_mag"]) * u.mag
-                    mag_err = np.array(_data["merr"]) * u.mag
-
-                    try:
-                        model = self.fitter(HG_model, alpha, mag, weights=1.0/np.array(mag_err))
-                    except:
-                        print("fit failed")
-                        model_list.append(False)
-                        H_list.append(np.nan)
-                        data_std_list.append(np.nan)
-                        phase_range_list.append(np.nan)
-                        continue
-
-                    #determine residuals from model
-                    reduced_mag_atlas = model(alpha)
-                    residual_mag_atlas = np.array(mag) - np.array(reduced_mag_atlas)
-                    H_mag = residual_mag_atlas + model.H.value
-                    print(np.absolute(np.median(H_mag)-model.H.value),np.std(residual_mag_atlas))
-
-                    # model_list.append(model) # record model
-                    # H_list.append(model.H.value) # record fitted absolute magnitude H
-                    # data_std_list.append(np.std(residual_mag_atlas)) # record the residuals to the HG fit for each epoch
-                    # phase_range_list.append(np.ptp(np.array(alpha))) # record the phase angle range for each epoch
-
-                    if np.absolute(np.median(H_mag)-model.H.value)<np.std(residual_mag_atlas):
-                        model_list.append(model) # record model
-                        H_list.append(model.H.value) # record fitted absolute magnitude H
-                        data_std_list.append(np.std(residual_mag_atlas)) # record the residuals to the HG fit for each epoch
-                        phase_range_list.append(np.ptp(np.array(alpha))) # record the phase angle range for each epoch
-                    else:
-                        print("apparition not good")
-                        model_list.append(False)
-                        H_list.append(np.nan)
-                        data_std_list.append(np.nan)
-                        phase_range_list.append(np.nan)
-
-                # calculate stats for each apparition
-                H_list = np.array(H_list)
-                data_std_list = np.array(data_std_list)
-                phase_range_list = np.array(phase_range_list)
-                print(H_list)
-                print(data_std_list)
-                print(phase_range_list)
-
-                # if all values in lists are nan (e.g. NEOs when default apparition finder fails) then stat calculation will fail
-                try:
-                    std_H_app = np.std(H_list[~np.isnan(H_list)])
-                    med_std_app = np.median(data_std_list[~np.isnan(data_std_list)])
-                    alpha_app_range = np.ptp(phase_range_list[~np.isnan(phase_range_list)]) # note that ptp of one value  = 0
-                except:
-                    std_H_app = np.nan
-                    med_std_app = np.nan
-                    alpha_app_range = np.nan
-
-                print("phase_curve_std_H_app_{}={}".format(filt,std_H_app))
-                print("phase_curve_med_std_app_{}={}".format(filt,med_std_app))
-                print("phase_angle_app_range_{}={}".format(filt,alpha_app_range))
-
-                # store the parameters in df_obj
-                df_obj["phase_curve_med_H_app_{}".format(filt)]=std_H_app
-                df_obj["phase_curve_med_std_app_{}".format(filt)]=med_std_app
-                df_obj["phase_angle_app_range_{}".format(filt)]=alpha_app_range
-
-                if self.plot_fig:
-                    # make a plot showing data sorted into apparitions
-                    self.apparition_plot(df_data = data,epochs = epochs, models = model_list)
-            #-----
-
-            # iterate over all models
-            for model_name,model_values in self.selected_models.items():
-
-                # cut on phase angle range only if using the Linear phase function
-                # MAKE THIS OPTIONAL?
-                if model_name=="LinearPhaseFunc":
-                    mask_alpha = ((data_filt["phase_angle"]>=self.phase_lin_min) & (data_filt["phase_angle"]<=self.phase_lin_max))
-                    N_alpha_lin=len(data_filt[~mask_alpha])
-                    data_filt=data_filt[mask_alpha]
-                    print("CUT N_alpha_lin = {}".format(N_alpha_lin))
-                else:
-                    N_alpha_lin=0
-
-                print(model_name,model_values)
-
-                # retrieve model names etc
-                ms=model_values["model_name_short"]
-                pc=model_values["model_parameters"]
-                model_func=model_values["model_function"]
-
-                print(ms,pc,model_func)
-
-                # Set the starting params with some dummy values, old_params will be used to test if the solution has converged
-                old_params=[999]*len(model_func.parameters)
-
-                # store models/labels/cut data for plotting
-                label_iter_list=[]
-                model_iter_list=[]
-                mag_cut_iter_list=[]
-                alpha_cut_iter_list=[]
-
-                print("{}, {}: fit {}, filter {}".format(self.name,self.mpc_number,model_name,filt))
-
-                # initialise the data that we will iteratively fit and cut
-                data=data_filt
-                data=data.sort_values("phase_angle") # ensure that the dataframe is in order for plotting
-                # data=data.sort_values("mjd") # ensure that the dataframe is in date order for finding epochs
-
-                # iteratively fit and cut data, for a maximum of max_iters times
-                k=0
-                while k<self.max_iters:
-
-                    print("iteration: {}, N_data={}".format(k,len(data)))
-
-                    # extract asteroid phase data from data, with units
-                    alpha = np.array(data['phase_angle']) * u.deg
-                    mag = np.array(data["reduced_mag"]) * u.mag
-                    mag_err = np.array(data["merr"]) * u.mag
-
-                    if k==0:
-                        # for first iteration start with the predicted HG mag (Bowell 1989)
-                        model=HG(H = H_abs_mag * u.mag, G = G_slope)
-                        model_str="astorb HG"
-                        param_names=model.param_names
-                        params=model.parameters
-
-                        # label the first fit
-                        labels=[model_str]
-                        for l in range(len(model.parameters)):
-                            labels.append("{}={:.2f} ".format(param_names[l],params[l]))
-                        label=", ".join(labels)
-
-                        if self.mag_diff_flag:
-                            # do a mag diff cut based on the initial assumed HG
-                            mask=self.data_clip_diff(mag, model(alpha),self.mag_med_cut)
-                            data_diff=data[mask]
-                            data=data[~mask]
-                            alpha = np.array(data['phase_angle']) * u.deg
-                            mag = np.array(data["reduced_mag"]) * u.mag
-                            mag_err = np.array(data["merr"]) * u.mag
-                        else:
-                            data_diff=[]
-
-
-                    else:
-                        # check that there is still enough data to fit (need more data points than parameters)
-                        if len(alpha)<=len(pc):
-                            print("less data to fit than parameters")
-                            break
-
-                        # !!! RECORD ANY WARNINGS ETC? see fitter.fit_info
-                        # logging will record these warnings
-                        with warnings.catch_warnings(record=True) as w:
-                            model = self.fitter(model_func, alpha, mag, weights=1.0/np.array(mag_err)) # fit using weights by uncertainty
-                            if len(w)>0:
-                                warning_message="{} - {} - {} - {} - {}".format(self.mpc_number,self.name,model_name,filt,w[-1].message)
-                                print(warning_message)
-                                logging.warning(warning_message)
-
-                        param_names=model.param_names
-                        params=model.parameters
-
-                        # label each fit iteration
-                        labels=["{}. {}".format(k,model_name)]
-                        for l in range(len(model.parameters)):
-                            labels.append("{}={:.2f} ".format(param_names[l],params[l]))
-                        label=", ".join(labels)
-
-                        # test for convergence, find difference in params
-                        delta_params = np.absolute(old_params-params)
-                        # if difference is less than threshold, we deem the solution to have converged and stop
-                        if np.sum(delta_params<self.param_converge_check)==len(delta_params):
-                            print(params)
-
-                            # retrieve the fit metrics
-                            x_vals=params
-                            param_cov=self.fitter.fit_info['param_cov'] # see notes of https://docs.astropy.org/en/stable/api/astropy.modeling.fitting.LevMarLSQFitter.html for difference between param_cov and cov_x
-                            if param_cov is None:
-                                print("A value of None indicates a singular matrix, which means the curvature in parameters x is numerically flat")
-                                # What should I do here?
-                                break
-
-                            # cov_x=self.fitter.fit_info['cov_x']
-                            # print("cov_x:\n{}".format(cov_x))
-                            # err_x = np.sqrt(np.diag(cov_x))
-                            # print("err_x: {}".format(err_x))
-                            # print(param_cov/cov_x)
-
-                            # retrieve errors in the parameters: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.curve_fit.html
-                            param_err_x = np.sqrt(np.diag(param_cov))
-                            param_shape=param_cov.shape
-                            correl_coef=np.zeros(param_shape)
-                            for l in range(param_shape[0]):
-                                for m in range(param_shape[1]):
-                                    correl_coef[l,m]=param_cov[l,m]/np.sqrt(param_cov[l,l]*param_cov[m,m]) # Hughes AND Hase eqn. 7.3
-
-                            # retrieve metrics for the data
-                            N_data_fit=len(data) # number of data points fit after clipping
-                            N_nights=len(np.unique(np.array(data["mjd"]).astype(int))) # number of unique nights in data set
-                            alpha_min=np.amin(alpha).value # minimum phase angle in data that was fit
-                            alpha_max=np.amax(alpha).value # max phase angle
-                            N_alpha_low=len(alpha[alpha<self.low_alpha_cut]) # Number of data points at low phase angle
-                            N_iter=k # number of fit and clip iterations
-                            nfev=self.fitter.fit_info['nfev'] # number of scipy function evalutations
-                            ier=self.fitter.fit_info['ierr'] # scipy fitter flag
-                            N_mag_err=len(mag_err[np.array(mag_err)<self.mag_err_threshold]) # Use leq? Number of data points with error below some threshold
-
-                            # Record the number of data points cut during the fitting process
-                            # Note that data_filt will have been cut by phase angle when the Linear function is fit
-                            N_data_cut = len(data_filt) - N_data_fit
-                            print("N_data_fit = {}\nN_data_cut = {}".format(N_data_fit,N_data_cut))
-
-                            # check number of data points cut and fit all add up to starting data
-                            # NEED TO COUNT DATA CUT BY ORBFIT_SEP_CUT HERE
-                            N_data_tot = N_data_zero_err + N_data_small_err + N_data_gal + N_alpha_lin + N_data_cut + N_data_fit + N_data_orbfit
-                            print(N_data_zero_err,N_data_small_err,N_data_gal,N_alpha_lin,N_data_cut,N_data_fit)
-                            print("N_data_tot = {}\nN_data_start = {}".format(N_data_tot,N_data_start))
-                            if N_data_tot!=N_data_start:
-                                print("Error, number of data points doesn't add up")
-                                logging.warning("{} - {} - {} - {} - N_data_tot!=N_data_start".format(self.mpc_number,self.name,model_name,filt))
-
-                            # calculate the residual properties
-                            residuals = mag - model(alpha)
-                            OC_mean = np.mean(residuals)
-                            OC_std = np.std(residuals)
-                            OC_range = np.absolute(np.amax(residuals)-np.amin(residuals))
-
-                            # check for errors
-                            if N_mag_err>N_data_fit:
-                                # ERROR in calculating N-mag_err?
-                                print("N_mag_err={}".format(N_mag_err))
-                                logging.warning("{} - {} - {} - {} - N_mag_err>N_data_fit".format(self.mpc_number,self.name,model_name,filt))
-
-                            # ALSO check for any nans in metrics? e.g. OC?
-
-                            print(self.fitter.fit_info['message'])
-
-                            print(df_obj["detection_count_{}".format(filt)])
-
-                            # populate the df_obj dataframe: add all fit params/metrics to df_obj
-                            df_obj["phase_curve_N_fit{}_{}".format(ms,filt)]=N_data_fit
-                            df_obj["phase_curve_alpha_min{}_{}".format(ms,filt)]=alpha_min
-                            df_obj["phase_curve_alpha_max{}_{}".format(ms,filt)]=alpha_max
-                            df_obj["phase_curve_N_alpha_low{}_{}".format(ms,filt)]=N_alpha_low
-                            df_obj["phase_curve_N_nights{}_{}".format(ms,filt)]=N_nights
-                            df_obj["phase_curve_N_iter{}_{}".format(ms,filt)]=N_iter
-                            # df_obj["phase_curve_refresh_date_{}".format(filt)]=self.utc_date_now
-                            df_obj["phase_curve_nfev{}_{}".format(ms,filt)]=nfev
-                            df_obj["phase_curve_ier{}_{}".format(ms,filt)]=ier
-                            df_obj["phase_curve_N_mag_err{}_{}".format(ms,filt)]=N_mag_err
-                            df_obj["phase_curve_OC_mean{}_{}".format(ms,filt)]=OC_mean
-                            df_obj["phase_curve_OC_std{}_{}".format(ms,filt)]=OC_std
-                            df_obj["phase_curve_OC_range{}_{}".format(ms,filt)]=OC_range
-
-                            df_obj["phase_curve_N_cut{}_{}".format(ms,filt)]=N_data_cut
-
-                            # # df_obj["phase_curve_app_res_med{}_{}".format(ms,filt)]=app_res_med
-                            # # df_obj["phase_curve_app_res_std{}_{}".format(ms,filt)]=app_res_std
-                            # # df_obj["phase_curve_app_res_range{}_{}".format(ms,filt)]=app_res_range
-                            # df_obj["phase_curve_app_res_med{}_{}".format(ms,filt)]=H_app_med
-                            # df_obj["phase_curve_app_res_std{}_{}".format(ms,filt)]=H_app_std
-                            # df_obj["phase_curve_app_res_range{}_{}".format(ms,filt)]=H_app_range
-
-                            for p in range(len(pc)):
-                                df_obj["phase_curve_{}{}_{}".format(pc[p],ms,filt)]=params[p]
-                                df_obj["phase_curve_{}_err{}_{}".format(pc[p],ms,filt)]=param_err_x[p]
-
-                            # might want to record a different set of parameters in df obj for LinearPhaseFunc
-                            # if model_name=="LinearPhaseFunc":
-                            # if "LinearPhaseFunc" in model_list:
-                                # Set only the LinearPhaseFunc parameters
-
-                            if self.plot_fig:
-
-                                # Plot this fit (different plotting functions available)
-
-                                # self.plot_phase_fit(model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
-                                # data_filt,data_zero_err,data_small_err,data_gal)
-
-                                # self.plot_phase_fit_iteration(model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
-                                # data_filt,data_zero_err,data_small_err,data_gal,data_diff)
-
-                                # self.plot_phase_fit_iteration2(model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
-                                # data_filt,data_zero_err,data_small_err,data_gal,data_diff)
-
-                                # self.plot_phase_fit_iteration_2panel(model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
-                                # data_filt,data_zero_err,data_small_err,data_gal,data_diff)
-
-                                # plot epochs
-                                # self.plot_epochs(model_func,model_name,model,data,data_all_filt,epochs,filt)
-                                # exit()
-
-                                self.plot_phase_fit_fancy(model,model_name,filt,label,data,label_iter_list,model_iter_list,alpha_cut_iter_list,mag_cut_iter_list,
-                                data_filt,data_zero_err,data_small_err,data_gal,data_diff,data_orbfit)
-
-                                # simplify plotting by passing a list of dataframes of cut data?
-
-                            # # save data that was used to fit to file
-                            # data_clip_file="results_analysis/fit_data/df_data_{}{}_{}.csv".format(self.mpc_number,ms,filt)
-                            # print(data_clip_file)
-                            # data.to_csv(data_clip_file)
-
-                            break
-
-                    # if params did not converge we clip outliers and repeat
-
-                    # record stuff for plotting
-                    label_iter_list.append(label)
-                    model_iter_list.append(model)
-
-                    # cut the outlying data
-                    mask=self.data_clip_func(mag, model(alpha),self.std)
-
-                    # record the cut data points for plotting
-                    mag_cut_iter_list.append(mag[mask])
-                    alpha_cut_iter_list.append(alpha[mask])
-
-                    # define the data to keep
-                    data=data[~mask]
-
-                    # store these params as old params, to check for convergence of the next fit
-                    if k>0:
-                        old_params=params
-
-                    k+=1
-
-        # push df_obj to the database
-        if self.push_fit==True:
-
-            # Will this fail if the names in df_obj do not match fields in mysql db?
-            # push_obj_db SHOULD only push selected columns in db_columns
-            # ADD LinearPhaseFunc fields to db!
-
-            self.push_obj_db(df_obj)
-
-        # close all database connections
-        # CLOSE CURSORS TOO?
-        self.cnx1.disconnect()
-        self.cnx2.disconnect()
-
-        return df_obj # return the fit df
+                    # if self.push_fit==True:
+                    #
+                    #     # push_obj_db SHOULD only push selected columns in db_columns
+                    #     # ADD LinearPhaseFunc fields to db!
+                    #     self.push_obj_db(df_obj)
+                    #
+                    # # close database connections
+                    # self.cnx1.disconnect()
+                    # self.cnx2.disconnect()
+                    #
+
+            df_obj_all = pd.concat([df_obj_all,df_obj])
+            print(df_obj.iloc[0].to_string())
+            print(len(list(df_obj)))
+
+        return df_obj_all # return the fit df of all epochs

@@ -41,15 +41,15 @@ else:
 if options.end_date:
     end_date=float(options.end_date)
 else:
-    # end_date=False
-    end_date=59259 # 2021-02-14 00:00:00.000
+    end_date=False
+    # end_date=59259 # 2021-02-14 00:00:00.000
 
 # add options for push and plot flags
 
 fit = sbpy_phase_fit.phase_fit(mpc_number,name,
-# push_fit_flag=False,plot_fig_flag=False,save_fig_flag=False,
-push_fit_flag=False,plot_fig_flag=True,save_fig_flag=True,
-show_fig_flag=True,
+push_fit_flag=True,plot_fig_flag=True,save_fig_flag=True,
+# push_fit_flag=False,plot_fig_flag=True,save_fig_flag=True,
+show_fig_flag=False,
 hide_warning_flag=warning_flag,
 save_path="results_analysis/calculate_phase_figs",
 # save_path="results_analysis/calculate_phase_figs_0-01",
@@ -57,9 +57,9 @@ save_path="results_analysis/calculate_phase_figs",
 start_date=start_date, end_date=end_date,
 model_list=["HG"],
 # model_list=["HG12_Pen16"],
-filter_list=["o"],
+# filter_list=["o"],
 # filter_list=filters,
-save_file_type="pdf",
+# save_file_type="pdf",
 mag_diff_flag=True,save_file_suffix="_mag_diff"
 )
 df=fit.calculate()

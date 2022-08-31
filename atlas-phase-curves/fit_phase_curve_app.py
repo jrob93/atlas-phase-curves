@@ -48,12 +48,10 @@ else:
 
 fit = sbpy_phase_fit_app.phase_fit(mpc_number,name,
 # push_fit_flag=True,plot_fig_flag=True,save_fig_flag=True,
-push_fit_flag=False,plot_fig_flag=True,save_fig_flag=True,
+push_fit_flag=False,plot_fig_flag=False,save_fig_flag=True,
 show_fig_flag=False,
 hide_warning_flag=warning_flag,
-save_path="results_analysis/calculate_phase_figs",
-# save_path="results_analysis/calculate_phase_figs_0-01",
-# save_path="results_analysis/calculate_phase_figs_0-005",
+save_path="results_analysis/app_test",
 start_date=start_date, end_date=end_date,
 # model_list=["HG"],
 # model_list=["HG12_Pen16"],
@@ -63,9 +61,14 @@ start_date=start_date, end_date=end_date,
 mag_diff_flag=True,save_file_suffix="_mag_diff"
 )
 df=fit.calculate()
-print(df.iloc[0].to_string())
-if name:
-    objid="_".join(name.split(" "))
-else:
-    objid = int(mpc_number)
-print("open results_analysis/calculate_phase_figs/sbpy_phase_fit_{}_HG*".format(objid))
+# print(df.iloc[0].to_string())
+print(df.sort_values("app_ind")[["name","mpc_number","app_start_mjd",
+"phase_curve_H_B89_o","phase_curve_H_err_B89_o",
+"phase_curve_G_B89_o","phase_curve_G_err_B89_o",
+"phase_curve_N_data_app_o","phase_curve_N_fit_o"]])
+
+# if name:
+#     objid="_".join(name.split(" "))
+# else:
+#     objid = int(mpc_number)
+# print("open results_analysis/calculate_phase_figs/sbpy_phase_fit_{}_HG*".format(objid))
