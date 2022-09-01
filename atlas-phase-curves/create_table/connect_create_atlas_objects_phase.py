@@ -18,9 +18,12 @@ config = {
 cnx = mysql.connector.connect(**config)
 cursor =cnx.cursor()
 
+# sql_file = "create_atlas_phase_fits.sql"
+sql_file = "create_atlas_phase_fits_app.sql"
+
 # read in the sql query (note that this is one query split over multiple lines)
 # multiple queries will probably require each line to be executed separately
-with open("create_atlas_phase_fits.sql") as f:
+with open(sql_file) as f:
     qry = f.readlines()
 qry="".join(qry)
 print(qry)
