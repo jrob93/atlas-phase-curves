@@ -14,13 +14,13 @@ print(len(all_columns))
 # these columns should be added as integers, not floats
 # DOUBLE CHECK WHAT DATA TYPE EACH COLUMN SHOULD BE
 metric_ints = ["N_fit","N_data_app","N_alpha_low","N_mag_err"]
-ints = ["detection_count","detection_count_o","detection_count_c"]
+ints = ["primaryId","detection_count","detection_count_o","detection_count_c"]
 tinyints = ["updated"]
 datetimes = ["last_photometry_update_date_o","phase_curve_refresh_date_o",
 "last_photometry_update_date_c","phase_curve_refresh_date_c",
 "dateLastModified"]
 varchars = ["name"]
-mediumints = ["primaryId","orbital_elements_id","mpc_number"]
+mediumints = ["orbital_elements_id","mpc_number"]
 decimals = ["last_detection_mjd"]
 
 # add lines that will add the following columns
@@ -58,7 +58,7 @@ for i,c in enumerate(new_columns):
 
 # ADD LINES TO CREATE TABLE WITH THE INDEXES:
 id1="PRIMARY KEY (primaryId)" # make sure each row has a unique primary key
-id2="UNIQUE INDEX (orbital_elements_id)"
+id2="INDEX (orbital_elements_id)"
 id3="INDEX (mpc_number)"
 of.write(",{},\n{},\n{}\n".format(id1,id2,id3))
 

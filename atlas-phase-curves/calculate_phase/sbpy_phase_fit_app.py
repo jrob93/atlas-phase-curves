@@ -65,8 +65,8 @@ class phase_fit():
 
     # define which clipping function to use
     # SET THIS IN __init__?
-    data_clip_func=data_clip_sigma
-    clip_label="{}-sigma_clip".format(std)
+    # data_clip_func=data_clip_sigma
+    # clip_label="{}-sigma_clip".format(std)
 
     # set up the astropy/scipy fitter and sbpy models
     # https://sbpy.readthedocs.io/en/latest/sbpy/photometry.html#disk-integrated-phase-function-models
@@ -100,7 +100,7 @@ class phase_fit():
         mag_diff_flag=False, # Flag to perform an initial cut of observations based on magnitude difference from expected values. DEFAULT THIS TO BE TRUE?
         model_list=["HG", "HG1G2", "HG12", "HG12_Pen16"], # Which models to fit. ADD LinearPhaseFunc here as default?
         filter_list=["o","c"], # which filters to fit
-        tab_name="atlas_phase_fit_app", # name of the sql table to save results
+        tab_name="atlas_phase_fits_app", # name of the sql table to save results
         connection=True # flag to control if we establish a connection to the sql database or not
         ):
 
@@ -326,7 +326,7 @@ class phase_fit():
             logging.warning(warning_message)
 
         qry=u"""INSERT INTO {} ({}) values ({}) ON DUPLICATE KEY UPDATE {};""".format(self.tab_name,",".join(cols), ",".join(vals), col_vals_update)
-        print(qry)
+        # print(qry)
 
         self.cursor2.execute(qry)
         self.cnx2.commit()
@@ -363,6 +363,9 @@ class phase_fit():
             self.mpc_number=df_obj_main.iloc[0]['mpc_number']
         self.name=df_obj_main.iloc[0]['name']
         print(self.mpc_number,self.name)
+
+        # get primaryId from atlas_objects
+        primaryId = df_obj_main.iloc[0]["primaryId"]
 
         #-----
         # Find the solar apparitions from elongation
@@ -526,6 +529,12 @@ class phase_fit():
             df_obj["app_start_mjd"]=epochs[epoch_ind]
             df_obj["app_ind"]=epoch_ind
 
+            # set a unique primaryId for each row: original primaryId + apparition index
+            df_obj["primaryId"] = str(primaryId) + str(epoch_ind)
+
+            # define the data for this apparition
+            mask_date = (((data_all_filt["mjd"]>=epochs[epoch_ind]) & (data_all_filt["mjd"]<epochs[epoch_ind+1])))
+
             # do a separate fit for data in each filter
             for filt in self.filters:
 
@@ -536,6 +545,40 @@ class phase_fit():
                     H_abs_mag+=(-0.332*u.mag)
                 if filt=="c":
                     H_abs_mag+=(0.054*u.mag)
+
+                # define the data for this apparition and filter
+                mask_filt =  (data_all_filt["filter"]==filt)
+                data = data_all_filt[mask_date & mask_filt]
+                print(len(data))
+
+                # record original number of datapoints in apparition - from original dataAllFilt dataframe
+                mask = (((dataAllFilt["mjd"]>=epochs[epoch_ind]) & (dataAllFilt["mjd"]<epochs[epoch_ind+1])) & (dataAllFilt["filter"]==filt))
+                N_data_app = len(dataAllFilt[mask])
+
+                # retrieve metrics for the data
+                N_data_fit=len(data) # number of data points fit after clipping
+                alpha_min=np.amin(data["phase_angle"]) # minimum phase angle in data that was fit
+                alpha_range = np.amax(data["phase_angle"]) - np.amin(data["phase_angle"])
+                N_alpha_low=len(data["phase_angle"][data["phase_angle"]<self.low_alpha_cut]) # Number of data points at low phase angle
+                N_mag_err=len(data["merr"][data["merr"]<self.mag_err_threshold]) # Use leq? Number of data points with error below some threshold
+
+                # apparition data properties
+                df_obj["phase_curve_N_fit_{}".format(filt)]=N_data_fit
+                df_obj["phase_curve_alpha_min_{}".format(filt)]=alpha_min
+                df_obj["phase_angle_range_{}".format(filt)] = alpha_range
+                df_obj["phase_curve_N_alpha_low_{}".format(filt)]=N_alpha_low
+                df_obj["phase_curve_N_mag_err_{}".format(filt)]=N_mag_err
+                df_obj["phase_curve_N_data_app_{}".format(filt)]=N_data_app
+
+                # Skip any epochs were all data points have been dropped - sometimes the first epoch in the dataframe might be empty, skip it
+                if float(df_epoch.iloc[i]['N_data'])==0:
+                    # the apparition should be pushed to the database, but with nans for missing columns
+                    continue
+
+                # define arrays for fitting
+                alpha = np.array(data["phase_angle"]) * u.deg
+                mag = np.array(data["reduced_mag"]) * u.mag
+                mag_err = np.array(data["merr"]) * u.mag
 
                 # iterate over all models for this apparition
                 for model_name,model_values in self.selected_models.items():
@@ -555,13 +598,13 @@ class phase_fit():
                     ms=model_values["model_name_short"]
                     pc=model_values["model_parameters"]
                     model=model_values["model_function"]
-                    print(ms,pc,model)
 
-                    # sometimes the first epoch in the dataframe might be empty, skip it
-                    if float(df_epoch.iloc[i]['N_data'])==0:
-                        # the apparition should be pushed to the database, but with nans
+                    # check there is sufficient data points to try fit
+                    if N_data_fit<=len(pc):
+                        print("less data to fit than parameters")
                         continue
-                    elif (epoch_ind==epoch_prime_ind) and filt=="o":
+
+                    if (epoch_ind==epoch_prime_ind) and filt=="o":
                         # set up model for fitting the primary o filter apparition
                         fit_slope = True
                         model.H = H_abs_mag # use the initial guess for H
@@ -583,33 +626,18 @@ class phase_fit():
                     df_obj["fit_slope"]=fit_slope
 
                     # set whether slope params are fixed
-                    print(model)
                     for x in pc[1:]:
                         getattr(model, '{}'.format(x)).fixed = not fit_slope
                         print("slope fixed = {}".format(getattr(model, '{}'.format(x)).fixed))
 
-                    # define the data for this apparition and filter
-                    mask = (((data_all_filt["mjd"]>=epochs[epoch_ind]) & (data_all_filt["mjd"]<epochs[epoch_ind+1])) & (data_all_filt["filter"]==filt))
-                    data = data_all_filt[mask]
-                    print(len(data))
-
-                    # record original number of datapoints in apparition
-                    mask = (((dataAllFilt["mjd"]>=epochs[epoch_ind]) & (dataAllFilt["mjd"]<epochs[epoch_ind+1])) & (dataAllFilt["filter"]==filt))
-                    N_app = len(dataAllFilt[mask])
-
                     # fit the model to the data
-                    alpha = np.array(data["phase_angle"]) * u.deg
-                    mag = np.array(data["reduced_mag"]) * u.mag
-                    mag_err = np.array(data["merr"]) * u.mag
+                    # !!! ADD ANY NEW FITTING CODE HERE
 
                     model_fit = self.fitter(model, alpha, mag, weights=1.0/np.array(mag_err))
-                    print(model_fit)
                     params = model_fit.parameters
-                    print(params)
 
                     # set the new H_abs_mag and slope parameters for subsequent fits
                     for j,x in enumerate(pc):
-                        print(x,params[j])
                         if x=="H":
                             setattr(model, "{}".format(x), params[j]*u.mag)
                         else:
@@ -633,18 +661,6 @@ class phase_fit():
                         for m in range(param_shape[1]):
                             correl_coef[l,m]=param_cov[l,m]/np.sqrt(param_cov[l,l]*param_cov[m,m]) # Hughes AND Hase eqn. 7.3
 
-                    # retrieve metrics for the data
-                    N_data_fit=len(data) # number of data points fit after clipping
-                    # N_nights=len(np.unique(np.array(data["mjd"]).astype(int))) # number of unique nights in apparition
-                    alpha_min=np.amin(alpha).value # minimum phase angle in data that was fit
-                    alpha_range = np.amax(data["phase_angle"]) - np.amin(data["phase_angle"])
-                    # alpha_max=np.amax(alpha).value # max phase angle
-                    N_alpha_low=len(alpha[alpha<self.low_alpha_cut]) # Number of data points at low phase angle
-                    # N_iter=k # number of fit and clip iterations
-                    # nfev=self.fitter.fit_info['nfev'] # number of scipy function evalutations
-                    # ier=self.fitter.fit_info['ierr'] # scipy fitter flag
-                    N_mag_err=len(mag_err[np.array(mag_err)<self.mag_err_threshold]) # Use leq? Number of data points with error below some threshold
-
                     # calculate the residual properties
                     residuals = mag - model(alpha)
                     OC_mean = np.mean(residuals)
@@ -659,99 +675,190 @@ class phase_fit():
 
                     # populate the df_obj dataframe: add all fit params/metrics to df_obj
 
-                    # apparition data properties
-                    df_obj["phase_curve_N_fit_{}".format(filt)]=N_data_fit
-                    df_obj["phase_curve_alpha_min_{}".format(filt)]=alpha_min
-                    df_obj["phase_angle_range_{}".format(filt)] = alpha_range
-                    df_obj["phase_curve_N_alpha_low_{}".format(filt)]=N_alpha_low
-                    df_obj["phase_curve_N_mag_err_{}".format(filt)]=N_mag_err
-                    df_obj["phase_curve_N_data_app_{}".format(filt)]=N_app
-
                     # phase curve model fit properties
                     df_obj["phase_curve_OC_mean{}_{}".format(ms,filt)]=OC_mean
                     df_obj["phase_curve_OC_std{}_{}".format(ms,filt)]=OC_std
                     df_obj["phase_curve_OC_range{}_{}".format(ms,filt)]=OC_range
-
                     # if slope is fixed there is no error on it, need to add nan to error list
                     if not fit_slope:
                         extra_err = np.array([np.nan]*len(pc[1:]))
                         param_err_x = np.concatenate((param_err_x,extra_err))
-
-                    print(params)
-                    print(param_err_x)
+                    # print(params)
+                    # print(param_err_x)
 
                     for p in range(len(pc)):
                         df_obj["phase_curve_{}{}_{}".format(pc[p],ms,filt)]=params[p]
                         df_obj["phase_curve_{}_err{}_{}".format(pc[p],ms,filt)]=param_err_x[p]
 
-                    # make a plot?
-                    if self.plot_fig:
-
-                        if not self.show_fig:
-                            import matplotlib
-                            print("use agg")
-                            matplotlib.use('agg') # use agg backend to stop python stealing focus when plotting
-
-                        import matplotlib.pyplot as plt
-                        import matplotlib.gridspec as gridspec
-
-                        fig = plt.figure()
-                        gs = gridspec.GridSpec(1,1)
-                        ax1 = plt.subplot(gs[0,0])
-
-                        # plot all the apparition data
-                        ax1.errorbar(data['phase_angle'],data['reduced_mag'],data['merr'], fmt='ko',label="fitted data",zorder=0,markersize="2")
-
-                        # highlight rejected data
-                        alpha_reject = np.concatenate([np.array(data_zero_err['phase_angle']),
-                        np.array(data_small_err['phase_angle']),np.array(data_gal['phase_angle']),
-                        np.array(data_orbfit['phase_angle']),np.array(data_lim_mag["phase_angle"])])
-                        mag_reject = np.concatenate([np.array(data_zero_err['reduced_mag']),
-                        np.array(data_small_err['reduced_mag']),np.array(data_gal['reduced_mag']),
-                        np.array(data_orbfit['reduced_mag']),np.array(data_lim_mag["reduced_mag"])])
-
-                        # plot phase curve fit
-                        alpha_fit=np.linspace(0,np.amax(alpha),250)
-                        ax1.plot(alpha_fit,model_fit(alpha_fit))
-
-                        # set y lims to better show the phase curve, not rejected data
-                        yshift = 0.5
-                        plt.ylim(np.amin(data['reduced_mag'])-yshift, np.amax(data['reduced_mag'])+yshift)
-
-                        ax1.set_xlabel('phase angle (degrees)')
-                        ax1.set_ylabel('reduced magnitude')
-                        ax1.invert_yaxis()
-                        ax1.legend()
-
-                        ax1.set_title("{}_{}_{}_{}_{}_{}".format(os.path.basename(__file__).split('.')[0],self.file_identifier,epoch_ind,model_name,self.clip_label,filt))
-                        plt.tight_layout()
-
-                        if self.save_fig:
-                            fname="{}/{}_{}_{}_{}_{}_{}_fancy{}.{}".format(self.save_path,os.path.basename(__file__).split('.')[0],self.file_identifier,epoch_ind,model_name,self.clip_label,filt,self.save_file_suffix,self.save_file_type)
-                            print(fname)
-                            plt.savefig(fname, bbox_inches='tight')
-
-                        if self.show_fig:
-                            plt.show()
-                        else:
-                            plt.close()
-
-                        plt.style.use('default')
-
-                    # push the parameters to database
-                    # if self.push_fit==True:
+                    # # make a plot?
+                    # if self.plot_fig:
                     #
-                    #     # push_obj_db SHOULD only push selected columns in db_columns
-                    #     # ADD LinearPhaseFunc fields to db!
-                    #     self.push_obj_db(df_obj)
+                    #     if not self.show_fig:
+                    #         import matplotlib
+                    #         print("use agg")
+                    #         matplotlib.use('agg') # use agg backend to stop python stealing focus when plotting
                     #
-                    # # close database connections
-                    # self.cnx1.disconnect()
-                    # self.cnx2.disconnect()
+                    #     import matplotlib.pyplot as plt
+                    #     import matplotlib.gridspec as gridspec
                     #
+                    #     fig = plt.figure()
+                    #     gs = gridspec.GridSpec(1,1)
+                    #     ax1 = plt.subplot(gs[0,0])
+                    #
+                    #     # plot all the apparition data
+                    #     ax1.errorbar(data['phase_angle'],data['reduced_mag'],data['merr'], fmt='ko',label="fitted data",zorder=0,markersize="2")
+                    #
+                    #     # highlight rejected data
+                    #     alpha_reject = np.concatenate([np.array(data_zero_err['phase_angle']),
+                    #     np.array(data_small_err['phase_angle']),np.array(data_gal['phase_angle']),
+                    #     np.array(data_orbfit['phase_angle']),np.array(data_lim_mag["phase_angle"])])
+                    #     mag_reject = np.concatenate([np.array(data_zero_err['reduced_mag']),
+                    #     np.array(data_small_err['reduced_mag']),np.array(data_gal['reduced_mag']),
+                    #     np.array(data_orbfit['reduced_mag']),np.array(data_lim_mag["reduced_mag"])])
+                    #
+                    #     # plot phase curve fit
+                    #     alpha_fit=np.linspace(0,np.amax(alpha),250)
+                    #     ax1.plot(alpha_fit,model_fit(alpha_fit))
+                    #
+                    #     # set y lims to better show the phase curve, not rejected data
+                    #     yshift = 0.5
+                    #     plt.ylim(np.amin(data['reduced_mag'])-yshift, np.amax(data['reduced_mag'])+yshift)
+                    #
+                    #     ax1.set_xlabel('phase angle (degrees)')
+                    #     ax1.set_ylabel('reduced magnitude')
+                    #     ax1.invert_yaxis()
+                    #     ax1.legend()
+                    #
+                    #     ax1.set_title("{}_{}_{}_{}_{}_{}".format(os.path.basename(__file__).split('.')[0],self.file_identifier,epoch_ind,model_name,self.clip_label,filt))
+                    #     plt.tight_layout()
+                    #
+                    #     if self.save_fig:
+                    #         fname="{}/{}_{}_{}_{}_{}_{}_fancy{}.{}".format(self.save_path,os.path.basename(__file__).split('.')[0],self.file_identifier,epoch_ind,model_name,self.clip_label,filt,self.save_file_suffix,self.save_file_type)
+                    #         print(fname)
+                    #         plt.savefig(fname, bbox_inches='tight')
+                    #
+                    #     if self.show_fig:
+                    #         plt.show()
+                    #     else:
+                    #         plt.close()
+                    #
+                    #     plt.style.use('default')
+
+            # push the parameters for this epoch to database
+            if self.push_fit==True:
+                # push_obj_db SHOULD only push selected columns in db_columns
+                # ADD LinearPhaseFunc fields to db!
+                self.push_obj_db(df_obj)
 
             df_obj_all = pd.concat([df_obj_all,df_obj])
-            print(df_obj.iloc[0].to_string())
-            print(len(list(df_obj)))
+            # print(df_obj_all.iloc[0].to_string())
+            # print(len(list(df_obj_all)))
+
+        # close database connections
+        self.cnx1.disconnect()
+        self.cnx2.disconnect()
+
+        # make a plot?
+        if self.plot_fig:
+
+            if not self.show_fig:
+                import matplotlib
+                print("use agg")
+                matplotlib.use('agg') # use agg backend to stop python stealing focus when plotting
+            else:
+                import matplotlib
+                print("use TkAgg")
+                matplotlib.use("TkAgg")
+
+            import matplotlib.pyplot as plt
+            import matplotlib.gridspec as gridspec
+
+            fig = plt.figure()
+            gs = gridspec.GridSpec(1,2)
+            ax1 = plt.subplot(gs[0,0])
+            ax2 = plt.subplot(gs[0,1], sharey = ax1)
+
+            # define the phase angle range
+            alpha_fit=np.linspace(0,np.amax(data_all_filt["phase_angle"]),250) * u.deg
+
+            # set y lims to better show the phase curve, not rejected data
+            yshift = 0.5
+            ax1.set_ylim(np.amin(data_all_filt['reduced_mag'])-yshift, np.amax(data_all_filt['reduced_mag'])+yshift)
+            ax2.set_ylim(np.amin(data_all_filt['reduced_mag'])-yshift, np.amax(data_all_filt['reduced_mag'])+yshift)
+
+            # iterate over all models for this apparition
+            for model_name,model_values in self.selected_models.items():
+
+                for ax,filt in zip([ax1,ax2],["o","c"],):
+
+                    ax.set_title("{}_{}_{}".format(self.file_identifier,model_name,filt))
+
+                    for k in range(len(df_epoch)):
+
+                        epoch_ind = int(df_epoch.iloc[len(df_epoch)-1-k]["epoch"])
+
+                        # retrieve model names etc
+                        ms=model_values["model_name_short"]
+                        pc=model_values["model_parameters"]
+                        model=model_values["model_function"]
+
+                        # get obs data
+                        mask_date = (((data_all_filt["mjd"]>=epochs[epoch_ind]) & (data_all_filt["mjd"]<epochs[epoch_ind+1])))
+                        mask_filt =  (data_all_filt["filter"]==filt)
+                        data = data_all_filt[mask_date & mask_filt]
+
+                        # plot all the apparition data
+                        ax.errorbar(data['phase_angle'],data['reduced_mag'],data['merr'], fmt='k.',zorder=0,markersize="2")
+                        ax.scatter(data['phase_angle'],data['reduced_mag'],zorder=1,c="C{}".format(k),s=2)
+
+                        # get the fit data
+                        _df_obj = df_obj_all[df_obj_all["app_ind"]==epoch_ind]
+
+                        for p in range(len(pc)):
+                            x = _df_obj.iloc[0]["phase_curve_{}{}_{}".format(pc[p],ms,filt)]
+                            if pc[p]=="H":
+                                x *= u.mag
+                            setattr(model, "{}".format(pc[p]), x)
+
+                        # no fit params
+                        if np.isnan(model.H):
+                            continue
+
+                        # plot phase curve fit
+                        fit_label = "{},".format(epoch_ind)
+                        for p in range(len(pc)):
+                            x=getattr(model, "{}".format(pc[p]))
+                            fit_label += " {}={:.2f}".format(pc[p],x.value)
+
+                        ax.plot(alpha_fit,model(alpha_fit), c = "C{}".format(k), label = fit_label)
+
+                break
+
+            # # set y lims to better show the phase curve, not rejected data
+            # yshift = 0.5
+            # plt.ylim(np.amin(data['reduced_mag'])-yshift, np.amax(data['reduced_mag'])+yshift)
+
+            ax1.set_xlabel('phase angle (degrees)')
+            ax2.set_xlabel('phase angle (degrees)')
+            ax1.set_ylabel('reduced magnitude')
+            ax1.legend()
+            ax2.legend()
+            ax1.invert_yaxis()
+
+            plt.tight_layout()
+
+            # if self.save_fig:
+            #     fname="{}/{}_{}_{}_{}_{}_{}_fancy{}.{}".format(self.save_path,os.path.basename(__file__).split('.')[0],self.file_identifier,epoch_ind,model_name,self.clip_label,filt,self.save_file_suffix,self.save_file_type)
+            #     print(fname)
+            #     plt.savefig(fname, bbox_inches='tight')
+
+            if self.show_fig:
+                plt.show()
+            else:
+                plt.close()
+
+            plt.style.use('default')
+
+        # !!! set dtypes of dataframe before returning?
 
         return df_obj_all # return the fit df of all epochs
