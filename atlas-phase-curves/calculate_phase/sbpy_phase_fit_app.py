@@ -623,7 +623,10 @@ class phase_fit():
                         # set up the model with fixed slope for every other apparition
                         fit_slope = False
 
-                    df_obj["fit_slope"]=fit_slope
+                    # record whether slope is fitted. skip if filter == c as o is done first
+                    if filt=="o":
+                        df_obj["fit_slope"]=fit_slope
+                        print("fit_slope={}".format(df_obj["fit_slope"]))
 
                     # set whether slope params are fixed
                     for x in pc[1:]:
@@ -781,10 +784,10 @@ class phase_fit():
             # define the phase angle range
             alpha_fit=np.linspace(0,np.amax(data_all_filt["phase_angle"]),250) * u.deg
 
-            # set y lims to better show the phase curve, not rejected data
-            yshift = 0.5
-            ax1.set_ylim(np.amin(data_all_filt['reduced_mag'])-yshift, np.amax(data_all_filt['reduced_mag'])+yshift)
-            ax2.set_ylim(np.amin(data_all_filt['reduced_mag'])-yshift, np.amax(data_all_filt['reduced_mag'])+yshift)
+            # # set y lims to better show the phase curve, not rejected data
+            # yshift = 0.5
+            # ax1.set_ylim(np.amin(data_all_filt['reduced_mag'])-yshift, np.amax(data_all_filt['reduced_mag'])+yshift)
+            # ax2.set_ylim(np.amin(data_all_filt['reduced_mag'])-yshift, np.amax(data_all_filt['reduced_mag'])+yshift)
 
             # iterate over all models for this apparition
             for model_name,model_values in self.selected_models.items():
@@ -836,7 +839,7 @@ class phase_fit():
 
             # # set y lims to better show the phase curve, not rejected data
             # yshift = 0.5
-            # plt.ylim(np.amin(data['reduced_mag'])-yshift, np.amax(data['reduced_mag'])+yshift)
+            # plt.ylim(np.median(data['reduced_mag'])-yshift, np.median(data['reduced_mag'])+yshift)
 
             ax1.set_xlabel('phase angle (degrees)')
             ax2.set_xlabel('phase angle (degrees)')
@@ -847,10 +850,10 @@ class phase_fit():
 
             plt.tight_layout()
 
-            # if self.save_fig:
-            #     fname="{}/{}_{}_{}_{}_{}_{}_fancy{}.{}".format(self.save_path,os.path.basename(__file__).split('.')[0],self.file_identifier,epoch_ind,model_name,self.clip_label,filt,self.save_file_suffix,self.save_file_type)
-            #     print(fname)
-            #     plt.savefig(fname, bbox_inches='tight')
+            if self.save_fig:
+                fname="{}/{}_{}_{}{}.{}".format(self.save_path,os.path.basename(__file__).split('.')[0],self.file_identifier,model_name,self.save_file_suffix,self.save_file_type)
+                print(fname)
+                plt.savefig(fname, bbox_inches='tight')
 
             if self.show_fig:
                 plt.show()
