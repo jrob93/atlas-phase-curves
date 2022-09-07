@@ -41,7 +41,8 @@ class phase_fit():
     mag_err_threshold = 0.1 # limit for the error of "good" data, we record N_mag_err number of data points with error < mag_err_threshold
     mag_err_small = 0.005 # we discount observations with error less than this
     gal_lat_cut=10 # galatic latitude cut in degrees
-    mag_med_cut=2 # initial magnitude difference cut on initial HG model
+    # mag_med_cut=2 # initial magnitude difference cut on initial HG model
+    mag_med_cut=1.5 # initial magnitude difference cut on initial HG model - most lcdb lightcurves have (peak to peak) amplitude < 2.5
     phase_lin_min=5 # minimum phase angle for linear fit - MAKE OPTIONAL?
     phase_lin_max=25 # maximum phase angle for linear fit
     orbfit_sep_cut=1.0 # maximum allowed orbfit separation for matching dophot_photometry (arcsec)
@@ -97,7 +98,7 @@ class phase_fit():
         save_file_type="png", # file type for saving figures
         push_fit_flag=False,plot_fig_flag=False,show_fig_flag=False,save_fig_flag=False,hide_warning_flag=False, # flags controlling plotting/saving of figures
         start_date=False,end_date=False, # set a start date and end date to control selection of observations
-        mag_diff_flag=False, # Flag to perform an initial cut of observations based on magnitude difference from expected values. DEFAULT THIS TO BE TRUE?
+        mag_diff_flag=True, # Flag to perform an initial cut of observations based on magnitude difference from expected values. DEFAULT THIS TO BE TRUE?
         model_list=["HG", "HG1G2", "HG12", "HG12_Pen16"], # Which models to fit. ADD LinearPhaseFunc here as default?
         filter_list=["o","c"], # which filters to fit
         tab_name="atlas_phase_fits_app", # name of the sql table to save results
@@ -457,6 +458,7 @@ class phase_fit():
         N_data_zero_err = len(data_zero_err)
         N_data_small_err = len(data_small_err)
         N_data_gal = len(data_gal)
+        data_all_cut = pd.concat([data_orbfit,data_lim_mag,data_zero_err,data_small_err,data_gal]) # store all data that is cut
         N_data_cut = N_data_orbfit + N_data_lim_mag + N_data_zero_err + N_data_small_err + N_data_gal
         print("CUT data_orbfit = {}\nCUT data_lim_mag = {}\nCUT data_zero_err = {}\nCUT data_small_err = {}\nCUT data_gal = {}".format(
         N_data_orbfit,N_data_lim_mag,N_data_zero_err,N_data_small_err,N_data_gal))
@@ -579,6 +581,39 @@ class phase_fit():
                 alpha = np.array(data["phase_angle"]) * u.deg
                 mag = np.array(data["reduced_mag"]) * u.mag
                 mag_err = np.array(data["merr"]) * u.mag
+
+                if self.mag_diff_flag:
+
+                    # check there is sufficient data points to try fit
+                    if len(data)<=2:
+                        print("less data to fit than parameters")
+                        continue
+
+                    # For each epoch do an initial H fit and mag diff cut to remove remaining extreme outliers
+                    model_HG = HG(H = H_abs_mag, G = G_slope)
+                    model_HG.G.fixed = True
+                    # model_HG = self.fitter(model_HG, alpha, mag, weights=1.0/np.array(mag_err))
+                    model_HG = self.fitter(model_HG, alpha, mag) # do not use weights to avoid fit being pulled by extremely low error outliers
+                    print(model_HG)
+
+                    reduced_mag = model_HG(alpha)
+                    mask_residual = self.data_clip_diff(np.array(mag),np.array(reduced_mag),diff=self.mag_med_cut)
+                    data_residual = data[mask_residual] # drop these obs from data_all_filt as well
+                    data_all_filt = data_all_filt.drop(data_residual.index)
+                    data_all_cut = pd.concat([data_all_cut,data_residual]) # store the cut datapoints
+
+                    data = data[~mask_residual]
+                    N_data_residual = len(data_residual)
+
+                    print("mag diff residual cut")
+                    print(len(data))
+                    print(N_data_residual)
+                    N_data_cut += N_data_residual
+
+                    # define arrays for fitting (again)
+                    alpha = np.array(data["phase_angle"]) * u.deg
+                    mag = np.array(data["reduced_mag"]) * u.mag
+                    mag_err = np.array(data["merr"]) * u.mag
 
                 # iterate over all models for this apparition
                 for model_name,model_values in self.selected_models.items():
@@ -810,8 +845,12 @@ class phase_fit():
                         mask_filt =  (data_all_filt["filter"]==filt)
                         data = data_all_filt[mask_date & mask_filt]
 
+                        data_cut = data_all_cut[((data_all_cut["mjd"]>=epochs[epoch_ind]) & (data_all_cut["mjd"]<epochs[epoch_ind+1])) &
+                                                (data_all_cut["filter"]==filt)]
+                        ax.scatter(data_cut['phase_angle'],data_cut['reduced_mag'],zorder=0,c="r",s=2)
+
                         # plot all the apparition data
-                        ax.errorbar(data['phase_angle'],data['reduced_mag'],data['merr'], fmt='k.',zorder=0,markersize="2")
+                        ax.errorbar(data['phase_angle'],data['reduced_mag'],data['merr'], fmt='k.',zorder=0,markersize="2",alpha=0.3)
                         ax.scatter(data['phase_angle'],data['reduced_mag'],zorder=1,c="C{}".format(k),s=2)
 
                         # get the fit data
