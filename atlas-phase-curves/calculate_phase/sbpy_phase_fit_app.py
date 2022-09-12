@@ -615,6 +615,9 @@ class phase_fit():
                     mag = np.array(data["reduced_mag"]) * u.mag
                     mag_err = np.array(data["merr"]) * u.mag
 
+                    N_data_fit=len(data) # number of data points fit after clipping
+
+
                 # iterate over all models for this apparition
                 for model_name,model_values in self.selected_models.items():
 
