@@ -557,21 +557,6 @@ class phase_fit():
                 mask = (((dataAllFilt["mjd"]>=epochs[epoch_ind]) & (dataAllFilt["mjd"]<epochs[epoch_ind+1])) & (dataAllFilt["filter"]==filt))
                 N_data_app = len(dataAllFilt[mask])
 
-                # retrieve metrics for the data
-                N_data_fit=len(data) # number of data points fit after clipping
-                alpha_min=np.amin(data["phase_angle"]) # minimum phase angle in data that was fit
-                alpha_range = np.amax(data["phase_angle"]) - np.amin(data["phase_angle"])
-                N_alpha_low=len(data["phase_angle"][data["phase_angle"]<self.low_alpha_cut]) # Number of data points at low phase angle
-                N_mag_err=len(data["merr"][data["merr"]<self.mag_err_threshold]) # Use leq? Number of data points with error below some threshold
-
-                # apparition data properties
-                df_obj["phase_curve_N_fit_{}".format(filt)]=N_data_fit
-                df_obj["phase_curve_alpha_min_{}".format(filt)]=alpha_min
-                df_obj["phase_angle_range_{}".format(filt)] = alpha_range
-                df_obj["phase_curve_N_alpha_low_{}".format(filt)]=N_alpha_low
-                df_obj["phase_curve_N_mag_err_{}".format(filt)]=N_mag_err
-                df_obj["phase_curve_N_data_app_{}".format(filt)]=N_data_app
-
                 # Skip any epochs were all data points have been dropped - sometimes the first epoch in the dataframe might be empty, skip it
                 if float(df_epoch.iloc[i]['N_data'])==0:
                     # the apparition should be pushed to the database, but with nans for missing columns
@@ -589,15 +574,16 @@ class phase_fit():
                         print("less data to fit than parameters")
                         continue
 
-                    # For each epoch do an initial H fit and mag diff cut to remove remaining extreme outliers
+                    # For each epoch do an initial H fit and mag residual cut to remove remaining extreme outliers
                     model_HG = HG(H = H_abs_mag, G = G_slope)
-                    model_HG.G.fixed = True
+                    model_HG.G.fixed = True # keep G fixed
                     # model_HG = self.fitter(model_HG, alpha, mag, weights=1.0/np.array(mag_err))
                     model_HG = self.fitter(model_HG, alpha, mag) # do not use weights to avoid fit being pulled by extremely low error outliers
                     print(model_HG)
 
                     reduced_mag = model_HG(alpha)
-                    mask_residual = self.data_clip_diff(np.array(mag),np.array(reduced_mag),diff=self.mag_med_cut)
+                    # mask_residual = self.data_clip_diff(np.array(mag),np.array(reduced_mag),diff=self.mag_med_cut)
+                    mask_residual = self.data_clip_sigma(np.array(mag),np.array(reduced_mag),low=self.std,high=self.std)
                     data_residual = data[mask_residual] # drop these obs from data_all_filt as well
                     data_all_filt = data_all_filt.drop(data_residual.index)
                     data_all_cut = pd.concat([data_all_cut,data_residual]) # store the cut datapoints
@@ -617,6 +603,20 @@ class phase_fit():
 
                     N_data_fit=len(data) # number of data points fit after clipping
 
+                # retrieve metrics for the data
+                N_data_fit=len(data) # number of data points fit after clipping
+                alpha_min=np.amin(data["phase_angle"]) # minimum phase angle in data that was fit
+                alpha_range = np.amax(data["phase_angle"]) - np.amin(data["phase_angle"])
+                N_alpha_low=len(data["phase_angle"][data["phase_angle"]<self.low_alpha_cut]) # Number of data points at low phase angle
+                N_mag_err=len(data["merr"][data["merr"]<self.mag_err_threshold]) # Use leq? Number of data points with error below some threshold
+
+                # apparition data properties
+                df_obj["phase_curve_N_fit_{}".format(filt)]=N_data_fit
+                df_obj["phase_curve_alpha_min_{}".format(filt)]=alpha_min
+                df_obj["phase_angle_range_{}".format(filt)] = alpha_range
+                df_obj["phase_curve_N_alpha_low_{}".format(filt)]=N_alpha_low
+                df_obj["phase_curve_N_mag_err_{}".format(filt)]=N_mag_err
+                df_obj["phase_curve_N_data_app_{}".format(filt)]=N_data_app
 
                 # iterate over all models for this apparition
                 for model_name,model_values in self.selected_models.items():
