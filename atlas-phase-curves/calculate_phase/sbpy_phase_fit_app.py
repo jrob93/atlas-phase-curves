@@ -42,7 +42,7 @@ class phase_fit():
     mag_err_small = 0.005 # we discount observations with error less than this
     gal_lat_cut=10 # galatic latitude cut in degrees
     # mag_med_cut=2 # initial magnitude difference cut on initial HG model
-    mag_med_cut=5 # initial magnitude difference cut on initial HG model - most lcdb lightcurves have (peak to peak) amplitude < 2.5
+    mag_med_cut=3 # initial magnitude difference cut on initial HG model - most lcdb lightcurves have (peak to peak) amplitude < 2.5
     phase_lin_min=5 # minimum phase angle for linear fit - MAKE OPTIONAL?
     phase_lin_max=25 # maximum phase angle for linear fit
     orbfit_sep_cut=1.0 # maximum allowed orbfit separation for matching dophot_photometry (arcsec)
@@ -688,7 +688,7 @@ class phase_fit():
                         # set up the model with fixed slope for every other apparition
                         fit_slope = False
 
-                    if fit_slope: # store the first HG fit used for cut to plotting later if needed
+                    if fit_slope and self.mag_diff_flag: # store the first HG fit used for cut to plotting later if needed
                         _model_HG = model_HG
                         _data_residual = data_residual
 
@@ -836,6 +836,10 @@ class phase_fit():
             print("save data: {}".format(save_file))
             data_all_filt.to_csv(save_file)
 
+            save_file2 = "{}/df_data_cut_{}.csv".format(self.save_path,self.file_identifier)
+            print("save data: {}".format(save_file2))
+            data_all_cut.to_csv(save_file2)
+
         # make a plot?
         if self.plot_fig:
 
@@ -885,9 +889,10 @@ class phase_fit():
                         mask_filt =  (data_all_filt["filter"]==filt)
                         data = data_all_filt[mask_date & mask_filt]
 
-                        # data_cut = data_all_cut[((data_all_cut["mjd"]>=epochs[epoch_ind]) & (data_all_cut["mjd"]<epochs[epoch_ind+1])) &
-                        #                         (data_all_cut["filter"]==filt)]
+                        data_cut = data_all_cut[((data_all_cut["mjd"]>=epochs[epoch_ind]) & (data_all_cut["mjd"]<epochs[epoch_ind+1])) &
+                                                (data_all_cut["filter"]==filt)]
                         # ax.scatter(data_cut['phase_angle'],data_cut['reduced_mag'],zorder=0,c="r",s=2)
+                        ax.scatter(data_cut['phase_angle'],data_cut['reduced_mag'],zorder=0,c="r",marker="x")
 
                         # plot all the apparition data
                         ax.errorbar(data['phase_angle'],data['reduced_mag'],data['merr'], fmt='k.',zorder=0,markersize="2",alpha=0.3)
@@ -914,9 +919,9 @@ class phase_fit():
 
                         ax.plot(alpha_fit,model(alpha_fit), c = "C{}".format(k), label = fit_label)
 
-                    # if filt=="o": # plot the first fit used to clip data
-                    #     ax.plot(alpha_fit,_model_HG(alpha_fit), c = "k", label = "initial cut")
-                    #     # ax.scatter(_data_residual["phase_angle"],_data_residual["reduced_mag"],edgecolor="r",facecolor="none")
+                    if filt=="o": # plot the first fit used to clip data
+                        ax.plot(alpha_fit,_model_HG(alpha_fit), c = "k", label = "initial cut")
+                        # ax.scatter(_data_residual["phase_angle"],_data_residual["reduced_mag"],edgecolor="r",facecolor="none")
 
                 break
 
