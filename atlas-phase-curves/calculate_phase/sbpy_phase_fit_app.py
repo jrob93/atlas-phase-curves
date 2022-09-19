@@ -42,7 +42,7 @@ class phase_fit():
     mag_err_small = 0.005 # we discount observations with error less than this
     gal_lat_cut=10 # galatic latitude cut in degrees
     # mag_med_cut=2 # initial magnitude difference cut on initial HG model
-    mag_med_cut=1.5 # initial magnitude difference cut on initial HG model - most lcdb lightcurves have (peak to peak) amplitude < 2.5
+    mag_med_cut=5 # initial magnitude difference cut on initial HG model - most lcdb lightcurves have (peak to peak) amplitude < 2.5
     phase_lin_min=5 # minimum phase angle for linear fit - MAKE OPTIONAL?
     phase_lin_max=25 # maximum phase angle for linear fit
     orbfit_sep_cut=1.0 # maximum allowed orbfit separation for matching dophot_photometry (arcsec)
@@ -53,7 +53,10 @@ class phase_fit():
     def data_clip_sigma(self,data,data_predict,low=std,high=std):
         """ function to cut outliers by standard deviation, i.e. sigma clipping
         returns the mask of data points to cut"""
-        std=np.std(data)
+        std=np.std(data) # !!!SHOULD THIS BE THE STD OF DATA-DATA PREDICT???
+        print("std = {}".format(std))
+        print("std = {}".format(np.std(data-data_predict)))
+        print("low = {}, high = {}".format(low,high))
         clip_mask=((data < (data_predict-(std*low))) | (data > (data_predict+(std*high))))
         return clip_mask
 
@@ -97,11 +100,13 @@ class phase_fit():
         save_file_suffix="", # add a suffix to saved files to customise their filenames if required
         save_file_type="png", # file type for saving figures
         push_fit_flag=False,plot_fig_flag=False,show_fig_flag=False,save_fig_flag=False,hide_warning_flag=False, # flags controlling plotting/saving of figures
+        plot_elong_fig=False, # flag to make solar elongation plot
         start_date=False,end_date=False, # set a start date and end date to control selection of observations
         mag_diff_flag=True, # Flag to perform an initial cut of observations based on magnitude difference from expected values. DEFAULT THIS TO BE TRUE?
         model_list=["HG", "HG1G2", "HG12", "HG12_Pen16"], # Which models to fit. ADD LinearPhaseFunc here as default?
         filter_list=["o","c"], # which filters to fit
         tab_name="atlas_phase_fits_app", # name of the sql table to save results
+        save_data_flag=False, # save the data that was used in the fit?
         connection=True # flag to control if we establish a connection to the sql database or not
         ):
 
@@ -120,6 +125,7 @@ class phase_fit():
 
         self.push_fit=push_fit_flag # flag to push fit to database
         self.plot_fig=plot_fig_flag # flag to generate plot for each object
+        self.plot_elong_fig=plot_elong_fig
         self.show_fig=show_fig_flag # flag to display interactive plot
         self.save_fig=save_fig_flag # flag to save the figure
         self.utc_date_now=datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S") # time at which the script is run (UTC)
@@ -127,6 +133,7 @@ class phase_fit():
         self.save_file_suffix=save_file_suffix # option to add a suffix to the png of plot saved
         self.save_file_type=save_file_type # option to choose type of file saved, e.g. png or pdf
         self.mag_diff_flag=mag_diff_flag # flag to perform an additional mag diff cut on the initial HG model
+        self.save_data_flag=save_data_flag
 
         self.selected_models= {key: value for key, value in self.all_models.items() if key in model_list} # create the dictionary of models to use
 
@@ -402,7 +409,7 @@ class phase_fit():
             logging.warning("{} - {} Error determining apparitions".format(self.mpc_number,self.name))
 
         # make the epoch plot?
-        if self.plot_fig:
+        if self.plot_elong_fig:
             sol.save_path = self.save_path
             print(self.save_path)
             sol.plot_solar_elongation(epochs)
@@ -577,21 +584,41 @@ class phase_fit():
                     # For each epoch do an initial H fit and mag residual cut to remove remaining extreme outliers
                     model_HG = HG(H = H_abs_mag, G = G_slope)
                     model_HG.G.fixed = True # keep G fixed
+                    print(model_HG)
                     # model_HG = self.fitter(model_HG, alpha, mag, weights=1.0/np.array(mag_err))
                     model_HG = self.fitter(model_HG, alpha, mag) # do not use weights to avoid fit being pulled by extremely low error outliers
                     print(model_HG)
 
+                    # !!! Make this section neater, how to do two cuts in a row and store clipped data in one thing?
+
+                    # do a first mag diff clip to get rid of the most ludicrous outliers
+                    # e.g. the sigma clip for 1999 XN102 fails because of a really bad outliers
                     reduced_mag = model_HG(alpha)
-                    # mask_residual = self.data_clip_diff(np.array(mag),np.array(reduced_mag),diff=self.mag_med_cut)
-                    mask_residual = self.data_clip_sigma(np.array(mag),np.array(reduced_mag),low=self.std,high=self.std)
+                    mask_residual = self.data_clip_diff(np.array(mag),np.array(reduced_mag),diff=self.mag_med_cut)
                     data_residual = data[mask_residual] # drop these obs from data_all_filt as well
+                    data = data[~mask_residual]
+                    N_data_residual = len(data_residual)
+                    print("mag diff residual cut")
+                    print(len(data))
+                    print(N_data_residual)
+                    N_data_cut += N_data_residual
+
+                    # define arrays for fitting (again)
+                    alpha = np.array(data["phase_angle"]) * u.deg
+                    mag = np.array(data["reduced_mag"]) * u.mag
+                    mag_err = np.array(data["merr"]) * u.mag
+
+                    # now we can do a sigma clip
+                    reduced_mag = model_HG(alpha)
+                    mask_residual = self.data_clip_sigma(np.array(mag),np.array(reduced_mag),low=self.std,high=self.std)
+                    data_residual = pd.concat([data_residual,data[mask_residual]]) # drop these obs from data_all_filt as well
                     data_all_filt = data_all_filt.drop(data_residual.index)
                     data_all_cut = pd.concat([data_all_cut,data_residual]) # store the cut datapoints
 
                     data = data[~mask_residual]
                     N_data_residual = len(data_residual)
 
-                    print("mag diff residual cut")
+                    print("mag sig residual cut")
                     print(len(data))
                     print(N_data_residual)
                     N_data_cut += N_data_residual
@@ -660,6 +687,10 @@ class phase_fit():
                     else:
                         # set up the model with fixed slope for every other apparition
                         fit_slope = False
+
+                    if fit_slope: # store the first HG fit used for cut to plotting later if needed
+                        _model_HG = model_HG
+                        _data_residual = data_residual
 
                     # record whether slope is fitted. skip if filter == c as o is done first
                     if filt=="o":
@@ -799,6 +830,12 @@ class phase_fit():
         self.cnx1.disconnect()
         self.cnx2.disconnect()
 
+        # save the data that was fit?
+        if self.save_data_flag:
+            save_file = "{}/df_data_fit_{}.csv".format(self.save_path,self.file_identifier)
+            print("save data: {}".format(save_file))
+            data_all_filt.to_csv(save_file)
+
         # make a plot?
         if self.plot_fig:
 
@@ -848,9 +885,9 @@ class phase_fit():
                         mask_filt =  (data_all_filt["filter"]==filt)
                         data = data_all_filt[mask_date & mask_filt]
 
-                        data_cut = data_all_cut[((data_all_cut["mjd"]>=epochs[epoch_ind]) & (data_all_cut["mjd"]<epochs[epoch_ind+1])) &
-                                                (data_all_cut["filter"]==filt)]
-                        ax.scatter(data_cut['phase_angle'],data_cut['reduced_mag'],zorder=0,c="r",s=2)
+                        # data_cut = data_all_cut[((data_all_cut["mjd"]>=epochs[epoch_ind]) & (data_all_cut["mjd"]<epochs[epoch_ind+1])) &
+                        #                         (data_all_cut["filter"]==filt)]
+                        # ax.scatter(data_cut['phase_angle'],data_cut['reduced_mag'],zorder=0,c="r",s=2)
 
                         # plot all the apparition data
                         ax.errorbar(data['phase_angle'],data['reduced_mag'],data['merr'], fmt='k.',zorder=0,markersize="2",alpha=0.3)
@@ -876,6 +913,10 @@ class phase_fit():
                             fit_label += " {}={:.2f}".format(pc[p],x.value)
 
                         ax.plot(alpha_fit,model(alpha_fit), c = "C{}".format(k), label = fit_label)
+
+                    # if filt=="o": # plot the first fit used to clip data
+                    #     ax.plot(alpha_fit,_model_HG(alpha_fit), c = "k", label = "initial cut")
+                    #     # ax.scatter(_data_residual["phase_angle"],_data_residual["reduced_mag"],edgecolor="r",facecolor="none")
 
                 break
 
