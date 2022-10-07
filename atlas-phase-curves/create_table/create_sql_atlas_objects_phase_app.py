@@ -21,7 +21,7 @@ datetimes = ["last_photometry_update_date_o","phase_curve_refresh_date_o",
 "dateLastModified"]
 varchars = ["name"]
 mediumints = ["orbital_elements_id","mpc_number"]
-decimals = ["last_detection_mjd"]
+decimals = ["last_detection_mjd","app_start_mjd"]
 
 # add lines that will add the following columns
 of=open("create_atlas_phase_fits_app.sql","w")

@@ -18,6 +18,7 @@ from astropy.utils.exceptions import AstropyUserWarning
 from astropy.utils.exceptions import AstropyWarning
 import warnings
 from sklearn.preprocessing import StandardScaler
+from scipy import stats
 
 # # importing our classes depends on whether this file as a script or module
 # if __name__ == "__main__": # import other modules as a script
@@ -196,11 +197,12 @@ class phase_fit():
         N_data_date = N_data1-N_data2
         print("CUT N_data_date = {}".format(N_data_date))
 
-        # DROP ALL ROWS WITH A NAN for m,merr,mjd,phase_angle
+        # DROP ALL ROWS WITH A NAN for m,merr,mjd,phase_angle,limiting_magnitude
         N_data3 = len(data_all_filt)
         print("data before nan cut = {}".format(N_data3))
         # data_all_filt=data_all_filt.dropna()
-        data_all_filt=data_all_filt.dropna(subset = ["m", "merr", "mjd","phase_angle"])
+        # data_all_filt=data_all_filt.dropna(subset = ["m", "merr", "mjd","phase_angle","limiting_magnitude"])
+        data_all_filt=data_all_filt.dropna()
         N_data4 = len(data_all_filt)
         print("data after nan cut = {}".format(N_data4))
         N_data_nan = N_data3 - N_data4
@@ -352,6 +354,9 @@ class phase_fit():
 
         # get the object observation data, cutting on date range and dropping rows with nan values for certain columns
         dataAllFilt=self.get_obj_data(self.cnx1,self.orbital_elements_id,self.start_date,self.end_date)
+        print("last mjd = {}".format(np.amax(dataAllFilt["mjd"])))
+        print("end_date = {}".format(self.end_date))
+        print("{} data points".format(len(dataAllFilt)))
 
         # get the object metadata and combine with the phase fit dataframe structure
         df_obj_main=self.get_obj_meta(self.cnx1,self.orbital_elements_id,self.mpc_number,self.name)
@@ -741,6 +746,21 @@ class phase_fit():
 
                     # ALSO check for any nans in metrics? e.g. OC?
 
+                    residuals_scaled = residuals/OC_std
+                    # skew
+                    skew = stats.skew(residuals_scaled)
+                    # kurtosis
+                    kurtosis = stats.kurtosis(residuals_scaled)
+                    # KS test
+                    KS = stats.kstest(residuals_scaled,stats.norm.cdf)
+                    KS_D = KS[0]
+                    KS_p = KS[1]
+
+                    df_obj["phase_curve_skew{}_{}".format(ms,filt)]=skew
+                    df_obj["phase_curve_kurtosis{}_{}".format(ms,filt)]=kurtosis
+                    df_obj["phase_curve_KS_D{}_{}".format(ms,filt)]=KS_D
+                    df_obj["phase_curve_KS_p{}_{}".format(ms,filt)]=KS_p
+
                     print(self.fitter.fit_info['message'])
 
                     print(df_obj["detection_count_{}".format(filt)])
@@ -920,9 +940,11 @@ class phase_fit():
                         ax.plot(alpha_fit,model(alpha_fit), c = "C{}".format(k), label = fit_label)
 
                     if filt=="o": # plot the first fit used to clip data
-                        ax.plot(alpha_fit,_model_HG(alpha_fit), c = "k", label = "initial cut")
-                        # ax.scatter(_data_residual["phase_angle"],_data_residual["reduced_mag"],edgecolor="r",facecolor="none")
-
+                        try:
+                            ax.plot(alpha_fit,_model_HG(alpha_fit), c = "k", label = "initial cut")
+                            # ax.scatter(_data_residual["phase_angle"],_data_residual["reduced_mag"],edgecolor="r",facecolor="none")
+                        except:
+                            continue
                 break
 
             # # set y lims to better show the phase curve, not rejected data
