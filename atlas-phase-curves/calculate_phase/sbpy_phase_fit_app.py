@@ -73,6 +73,10 @@ class phase_fit():
     # data_clip_func=data_clip_sigma
     # clip_label="{}-sigma_clip".format(std)
 
+    def trunc(self,values, decs=0):
+        """Function to truncate a number at a certain decimal place, not round it!"""
+        return np.trunc(values*10**decs)/(10**decs)
+
     # set up the astropy/scipy fitter and sbpy models
     # https://sbpy.readthedocs.io/en/latest/sbpy/photometry.html#disk-integrated-phase-function-models
     fitter = LevMarLSQFitter()
@@ -540,7 +544,7 @@ class phase_fit():
             print(df_epoch.iloc[i])
             # continue
             epoch_ind = int(df_epoch.iloc[i]["epoch"])
-            df_obj["app_start_mjd"]=np.round(epochs[epoch_ind],7) # set precision to match the sql format decimal(17,7)
+            df_obj["app_start_mjd"]=self.trunc(epochs[epoch_ind],decs=7) # set precision to match the sql format decimal(17,7)
             df_obj["app_ind"]=epoch_ind
 
             # set a unique primaryId for each row: original primaryId + apparition index
