@@ -540,7 +540,7 @@ class phase_fit():
             print(df_epoch.iloc[i])
             # continue
             epoch_ind = int(df_epoch.iloc[i]["epoch"])
-            df_obj["app_start_mjd"]=epochs[epoch_ind]
+            df_obj["app_start_mjd"]=np.round(epochs[epoch_ind],7) # set precision to match the sql format decimal(17,7)
             df_obj["app_ind"]=epoch_ind
 
             # set a unique primaryId for each row: original primaryId + apparition index
@@ -680,11 +680,16 @@ class phase_fit():
                         model.H = H_abs_mag # use the initial guess for H
                         # initial guess for slope parameters
                         for x in pc[1:]:
-                            # choose G1 and G2 to be similar to usual default of G = 0.15
+                            # choose G1 and G2 to be similar to usual default of G = 0.15 (astro_notebooks/phase_curve_plots.ipynb)
                             if x=="G1":
                                 _G_slope = 0.5
                             elif x=="G2":
                                 _G_slope = 0.2
+                            # !!! ADD THE OPTIONS FOR HG12 AND HG12_Pen16!
+                            elif x=="G12" and ms=="_2M10":
+                                _G_slope = 0.5
+                            elif x=="G12" and ms=="_P16":
+                                _G_slope = 0.7
                             else:
                                 _G_slope = G_slope
                             setattr(model, "{}".format(x), _G_slope)
@@ -692,6 +697,8 @@ class phase_fit():
                     else:
                         # set up the model with fixed slope for every other apparition
                         fit_slope = False
+
+                    print("initial model:\n{}".format(model))
 
                     if fit_slope and self.mag_diff_flag: # store the first HG fit used for cut to plotting later if needed
                         _model_HG = model_HG
