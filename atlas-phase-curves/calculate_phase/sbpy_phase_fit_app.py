@@ -54,7 +54,8 @@ class phase_fit():
     def data_clip_sigma(self,data,data_predict,low=std,high=std):
         """ function to cut outliers by standard deviation, i.e. sigma clipping
         returns the mask of data points to cut"""
-        std=np.std(data) # !!!SHOULD THIS BE THE STD OF DATA-DATA PREDICT???
+        # std=np.std(data) # !!!SHOULD THIS BE THE STD OF DATA-DATA PREDICT???
+        std=np.std(data-data_predict) # consider the std of the residuals
         print("std = {}".format(std))
         print("std = {}".format(np.std(data-data_predict)))
         print("low = {}, high = {}".format(low,high))
@@ -766,11 +767,15 @@ class phase_fit():
                     KS = stats.kstest(residuals_scaled,stats.norm.cdf)
                     KS_D = KS[0]
                     KS_p = KS[1]
+                    # Pearson correlation coefficient
+                    res = stats.pearsonr(np.array(alpha),residuals_scaled)
 
                     df_obj["phase_curve_skew{}_{}".format(ms,filt)]=skew
                     df_obj["phase_curve_kurtosis{}_{}".format(ms,filt)]=kurtosis
                     df_obj["phase_curve_KS_D{}_{}".format(ms,filt)]=KS_D
                     df_obj["phase_curve_KS_p{}_{}".format(ms,filt)]=KS_p
+                    df_obj["phase_curve_correl{}_{}".format(ms,filt)]=res[0]
+                    df_obj["phase_curve_correl_p{}_{}".format(ms,filt)]=res[1]
 
                     print(self.fitter.fit_info['message'])
 
@@ -793,59 +798,64 @@ class phase_fit():
                         df_obj["phase_curve_{}{}_{}".format(pc[p],ms,filt)]=params[p]
                         df_obj["phase_curve_{}_err{}_{}".format(pc[p],ms,filt)]=param_err_x[p]
 
-                    # # make a plot?
-                    # if self.plot_fig:
-                    #
-                    #     if not self.show_fig:
-                    #         import matplotlib
-                    #         print("use agg")
-                    #         matplotlib.use('agg') # use agg backend to stop python stealing focus when plotting
-                    #
-                    #     import matplotlib.pyplot as plt
-                    #     import matplotlib.gridspec as gridspec
-                    #
-                    #     fig = plt.figure()
-                    #     gs = gridspec.GridSpec(1,1)
-                    #     ax1 = plt.subplot(gs[0,0])
-                    #
-                    #     # plot all the apparition data
-                    #     ax1.errorbar(data['phase_angle'],data['reduced_mag'],data['merr'], fmt='ko',label="fitted data",zorder=0,markersize="2")
-                    #
-                    #     # highlight rejected data
-                    #     alpha_reject = np.concatenate([np.array(data_zero_err['phase_angle']),
-                    #     np.array(data_small_err['phase_angle']),np.array(data_gal['phase_angle']),
-                    #     np.array(data_orbfit['phase_angle']),np.array(data_lim_mag["phase_angle"])])
-                    #     mag_reject = np.concatenate([np.array(data_zero_err['reduced_mag']),
-                    #     np.array(data_small_err['reduced_mag']),np.array(data_gal['reduced_mag']),
-                    #     np.array(data_orbfit['reduced_mag']),np.array(data_lim_mag["reduced_mag"])])
-                    #
-                    #     # plot phase curve fit
-                    #     alpha_fit=np.linspace(0,np.amax(alpha),250)
-                    #     ax1.plot(alpha_fit,model_fit(alpha_fit))
-                    #
-                    #     # set y lims to better show the phase curve, not rejected data
-                    #     yshift = 0.5
-                    #     plt.ylim(np.amin(data['reduced_mag'])-yshift, np.amax(data['reduced_mag'])+yshift)
-                    #
-                    #     ax1.set_xlabel('phase angle (degrees)')
-                    #     ax1.set_ylabel('reduced magnitude')
-                    #     ax1.invert_yaxis()
-                    #     ax1.legend()
-                    #
-                    #     ax1.set_title("{}_{}_{}_{}_{}_{}".format(os.path.basename(__file__).split('.')[0],self.file_identifier,epoch_ind,model_name,self.clip_label,filt))
-                    #     plt.tight_layout()
-                    #
-                    #     if self.save_fig:
-                    #         fname="{}/{}_{}_{}_{}_{}_{}_fancy{}.{}".format(self.save_path,os.path.basename(__file__).split('.')[0],self.file_identifier,epoch_ind,model_name,self.clip_label,filt,self.save_file_suffix,self.save_file_type)
-                    #         print(fname)
-                    #         plt.savefig(fname, bbox_inches='tight')
-                    #
-                    #     if self.show_fig:
-                    #         plt.show()
-                    #     else:
-                    #         plt.close()
-                    #
-                    #     plt.style.use('default')
+                    # make a plot?
+                    if self.plot_fig:
+
+                        if not self.show_fig:
+                            import matplotlib
+                            print("use agg")
+                            matplotlib.use('agg') # use agg backend to stop python stealing focus when plotting
+
+                        import matplotlib.pyplot as plt
+                        import matplotlib.gridspec as gridspec
+
+                        fig = plt.figure()
+                        gs = gridspec.GridSpec(1,1)
+                        ax1 = plt.subplot(gs[0,0])
+
+                        # plot all the apparition data
+                        ax1.errorbar(data['phase_angle'],data['reduced_mag'],data['merr'], fmt='ko',label="fitted data",zorder=0,markersize="2")
+
+                        # highlight rejected data
+                        alpha_reject = np.concatenate([np.array(data_zero_err['phase_angle']),
+                        np.array(data_small_err['phase_angle']),np.array(data_gal['phase_angle']),
+                        np.array(data_orbfit['phase_angle']),np.array(data_lim_mag["phase_angle"])])
+                        mag_reject = np.concatenate([np.array(data_zero_err['reduced_mag']),
+                        np.array(data_small_err['reduced_mag']),np.array(data_gal['reduced_mag']),
+                        np.array(data_orbfit['reduced_mag']),np.array(data_lim_mag["reduced_mag"])])
+
+                        data_cut = data_all_cut[((data_all_cut["mjd"]>=epochs[epoch_ind]) & (data_all_cut["mjd"]<epochs[epoch_ind+1])) &
+                                                (data_all_cut["filter"]==filt)]
+                        # ax.scatter(data_cut['phase_angle'],data_cut['reduced_mag'],zorder=0,c="r",s=2)
+                        ax1.scatter(data_cut['phase_angle'],data_cut['reduced_mag'],zorder=0,c="r",marker="x")
+
+                        # plot phase curve fit
+                        alpha_fit=np.linspace(0,np.amax(alpha),250)
+                        ax1.plot(alpha_fit,model_fit(alpha_fit))
+
+                        # # set y lims to better show the phase curve, not rejected data
+                        # yshift = 0.5
+                        # plt.ylim(np.amin(data['reduced_mag'])-yshift, np.amax(data['reduced_mag'])+yshift)
+
+                        ax1.set_xlabel('phase angle (degrees)')
+                        ax1.set_ylabel('reduced magnitude')
+                        ax1.invert_yaxis()
+                        ax1.legend()
+
+                        ax1.set_title("{}_{}_{}_{}_{}".format(os.path.basename(__file__).split('.')[0],self.file_identifier,epoch_ind,model_name,filt))
+                        plt.tight_layout()
+
+                        if self.save_fig:
+                            fname="{}/{}_{}_{}_{}_{}_fancy{}.{}".format(self.save_path,os.path.basename(__file__).split('.')[0],self.file_identifier,epoch_ind,model_name,filt,self.save_file_suffix,self.save_file_type)
+                            print(fname)
+                            plt.savefig(fname, bbox_inches='tight')
+
+                        if self.show_fig:
+                            plt.show()
+                        else:
+                            plt.close()
+
+                        plt.style.use('default')
 
             # push the parameters for this epoch to database
             if self.push_fit==True:
