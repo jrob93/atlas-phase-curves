@@ -49,15 +49,18 @@ else:
 fit = sbpy_phase_fit_app.phase_fit(mpc_number,name,
 # push_fit_flag=True,plot_fig_flag=True,save_fig_flag=True,
 push_fit_flag=False,plot_fig_flag=True,save_fig_flag=True,
-# show_fig_flag=False,
-show_fig_flag=True,
+show_fig_flag=False,
+# show_fig_flag=True,
 hide_warning_flag=warning_flag,
 save_path="results_analysis/app_test",
+# save_path="results_analysis/app_test2",
 # mag_diff_flag=False,
+plot_elong_fig = True,
+# save_data_flag=True,
 start_date=start_date, end_date=end_date
 # model_list=["HG"],
 # model_list=["HG12_Pen16"],
-# filter_list=["o"],
+# filter_list=["o"]
 # filter_list=filters,
 # save_file_type="pdf",
 #save_file_suffix="_mag_diff"
@@ -71,6 +74,13 @@ print(df.sort_values("app_ind")[["primaryId","name","mpc_number","app_start_mjd"
 "phase_curve_N_data_app_o","phase_curve_N_fit_o","phase_curve_N_fit_c","fit_slope"]])
 print(len(df.columns))
 print(df.dtypes)
+print(df.sort_values("app_ind")[["primaryId","name","mpc_number","app_start_mjd",
+"app_ind","phase_curve_H_B89_o",
+"phase_curve_skew_B89_o","phase_curve_kurtosis_B89_o",
+"phase_curve_KS_D_B89_o","phase_curve_KS_p_B89_o"]])
+print(df.sort_values("app_ind")[["primaryId","name","mpc_number","app_start_mjd",
+"app_ind","phase_curve_H_B89_o",
+"phase_curve_correl_B89_o","phase_curve_correl_p_B89_o"]])
 # if name:
 #     objid="_".join(name.split(" "))
 # else:
