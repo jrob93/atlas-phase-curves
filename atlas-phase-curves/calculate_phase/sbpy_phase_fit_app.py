@@ -557,6 +557,9 @@ class phase_fit():
             # do a separate fit for data in each filter
             for filt in self.filters:
 
+                print("\n")
+                print("fit {} filter data".format(filt))
+
                 df_obj["phase_curve_refresh_date_{}".format(filt)]=self.utc_date_now
 
                 # do filter correction from V band (Heinze et al. 2020) - see also Erasmus et al 2020 for the c-o colours of S and C types (0.388 and 0.249 respectively)
@@ -724,6 +727,7 @@ class phase_fit():
 
                     model_fit = self.fitter(model, alpha, mag, weights=1.0/np.array(mag_err))
                     params = model_fit.parameters
+                    print("params = {}".format(params))
 
                     # set the new H_abs_mag and slope parameters for subsequent fits
                     for j,x in enumerate(pc):
@@ -740,7 +744,8 @@ class phase_fit():
                     if param_cov is None:
                         print("A value of None indicates a singular matrix, which means the curvature in parameters x is numerically flat")
                         # What should I do here?
-                        break
+                        # break
+                        continue
 
                     # retrieve errors in the parameters: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.curve_fit.html
                     param_err_x = np.sqrt(np.diag(param_cov))
@@ -933,7 +938,7 @@ class phase_fit():
                         data_cut = data_all_cut[((data_all_cut["mjd"]>=epochs[epoch_ind]) & (data_all_cut["mjd"]<epochs[epoch_ind+1])) &
                                                 (data_all_cut["filter"]==filt)]
                         # ax.scatter(data_cut['phase_angle'],data_cut['reduced_mag'],zorder=0,c="r",s=2)
-                        ax.scatter(data_cut['phase_angle'],data_cut['reduced_mag'],zorder=0,c="r",marker="x")
+                        # ax.scatter(data_cut['phase_angle'],data_cut['reduced_mag'],zorder=0,c="r",marker="x")
 
                         # plot all the apparition data
                         ax.errorbar(data['phase_angle'],data['reduced_mag'],data['merr'], fmt='k.',zorder=0,markersize="2",alpha=0.3)
